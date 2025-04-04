@@ -22,6 +22,8 @@ class CustomTextField extends StatelessWidget {
   final bool enabled;
   final String? initialValue;
   final TextCapitalization textCapitalization;
+  final TextInputAction textInputAction;
+  final Function(String)? onSubmitted;
 
   const CustomTextField({
     Key? key,
@@ -44,6 +46,8 @@ class CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.initialValue,
     this.textCapitalization = TextCapitalization.none,
+    this.textInputAction = TextInputAction.next,
+    this.onSubmitted,
   }) : super(key: key);
 
   @override
@@ -75,6 +79,8 @@ class CustomTextField extends StatelessWidget {
           autofocus: autofocus,
           enabled: enabled,
           textCapitalization: textCapitalization,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onSubmitted,
           decoration: InputDecoration(
             hintText: hint,
             suffixIcon: suffixIcon,

@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_field.dart';
+import '../../../../core/services/firebase_auth_service.dart';
+import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/service_locator.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({Key? key}) : super(key: key);
@@ -20,6 +23,11 @@ class _SignupPageState extends State<SignupPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMessage;
+
+  // Get services using dependency injection
+  final FirebaseAuthService _authService = getService<FirebaseAuthService>();
+  final FirestoreService _firestoreService = getService<FirestoreService>();
 
   @override
   void dispose() {
@@ -31,21 +39,56 @@ class _SignupPageState extends State<SignupPage> {
     super.dispose();
   }
 
-  void _signup() {
+  Future<void> _signup() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
+        _errorMessage = null;
       });
 
-      // Here we would integrate with Firebase Auth
-      // For now just navigate to dashboard
-      Future.delayed(const Duration(seconds: 1), () {
+      try {
+        // Create user with Firebase Auth
+        final userCredential =
+            await _authService.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+        // Update user display name
+        await _authService.updateUserProfile(
+          displayName: _nameController.text.trim(),
+        );
+
+        // Store additional user information in Firestore
+        await _firestoreService.setDocument(
+          collectionPath: 'users',
+          documentId: userCredential.user!.uid,
+          data: {
+            'name': _nameController.text.trim(),
+            'shopName': _shopNameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'role': 'admin',
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+        );
+
+        // Navigate to dashboard on success
+        if (mounted) {
+          context.go('/');
+        }
+      } catch (e) {
+        // Handle any errors that occur during signup
         setState(() {
-          _isLoading = false;
+          _errorMessage = e.toString();
         });
-
-        context.go('/');
-      });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -78,6 +121,28 @@ class _SignupPageState extends State<SignupPage> {
                       ),
                 ),
                 const SizedBox(height: 32),
+                if (_errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 CustomTextField(
                   label: 'Full Name',
                   hint: 'Enter your full name',
