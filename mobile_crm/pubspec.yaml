@@ -66,6 +66,9 @@ dependencies:
   
   # Local Storage
   shared_preferences: ^2.2.2
+  
+  # Utilities
+  uuid: ^4.2.1
 
 dev_dependencies:
   flutter_test:
