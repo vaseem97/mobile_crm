@@ -43,7 +43,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // If authentication is required but user is not authenticated, redirect to login
         if (widget.requireAuth && !isAuthenticated) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.go('/login');
+            context.pushReplacement('/login');
           });
           // Show loading screen while redirecting
           return const Scaffold(
@@ -57,7 +57,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // redirect to home page
         if (!widget.requireAuth && isAuthenticated) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.go('/');
+            context.pushReplacement('/');
           });
           // Show loading screen while redirecting
           return const Scaffold(

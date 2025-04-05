@@ -6,6 +6,11 @@ import '../../../../core/widgets/repair_job_card.dart';
 class DashboardRepairsTab extends StatefulWidget {
   const DashboardRepairsTab({Key? key}) : super(key: key);
 
+  // Static method to set the selected tab
+  static void setSelectedTab(RepairStatus status) {
+    _DashboardRepairsTabState.navigateToTab(status);
+  }
+
   @override
   State<DashboardRepairsTab> createState() => _DashboardRepairsTabState();
 }
@@ -15,17 +20,47 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
   late TabController _tabController;
   final _searchController = TextEditingController();
 
+  // This variable is used to track and restore the tab state
+  static int savedTabIndex = 0;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController =
+        TabController(length: 4, vsync: this, initialIndex: savedTabIndex);
+    _tabController.addListener(_handleTabSelection);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _handleTabSelection() {
+    if (_tabController.indexIsChanging) {
+      savedTabIndex = _tabController.index;
+    }
+  }
+
+  // Custom method to navigate to a specific tab
+  static void navigateToTab(RepairStatus status) {
+    switch (status) {
+      case RepairStatus.pending:
+        savedTabIndex = 0;
+        break;
+      case RepairStatus.inProgress:
+        savedTabIndex = 1;
+        break;
+      case RepairStatus.completed:
+        savedTabIndex = 2;
+        break;
+      case RepairStatus.delivered:
+        savedTabIndex = 3;
+        break;
+    }
   }
 
   @override

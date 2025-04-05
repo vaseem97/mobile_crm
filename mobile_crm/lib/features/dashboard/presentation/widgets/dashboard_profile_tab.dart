@@ -522,7 +522,7 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
                 if (context.mounted) {
                   // Remove loading dialog
                   Navigator.of(context).pop();
-                  context.go('/login');
+                  context.push('/login');
                 }
               } catch (e) {
                 // Remove loading dialog

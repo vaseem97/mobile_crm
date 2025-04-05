@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class DashboardStatsTab extends StatelessWidget {
@@ -252,29 +253,41 @@ class DashboardStatsTab extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildRepairStat(
-                  context,
-                  '31',
-                  'Total Repairs',
-                  AppColors.primary,
+                InkWell(
+                  onTap: () => context.push('/repairs/pending'),
+                  child: _buildRepairStat(
+                    context,
+                    '31',
+                    'Total Repairs',
+                    AppColors.primary,
+                  ),
                 ),
-                _buildRepairStat(
-                  context,
-                  '6',
-                  'Pending',
-                  AppColors.warning,
+                InkWell(
+                  onTap: () => context.push('/repairs/pending'),
+                  child: _buildRepairStat(
+                    context,
+                    '6',
+                    'Pending',
+                    AppColors.warning,
+                  ),
                 ),
-                _buildRepairStat(
-                  context,
-                  '4',
-                  'In Progress',
-                  AppColors.info,
+                InkWell(
+                  onTap: () => context.push('/repairs/inprogress'),
+                  child: _buildRepairStat(
+                    context,
+                    '4',
+                    'In Progress',
+                    AppColors.info,
+                  ),
                 ),
-                _buildRepairStat(
-                  context,
-                  '21',
-                  'Completed',
-                  AppColors.success,
+                InkWell(
+                  onTap: () => context.push('/repairs/completed'),
+                  child: _buildRepairStat(
+                    context,
+                    '21',
+                    'Completed',
+                    AppColors.success,
+                  ),
                 ),
               ],
             ),

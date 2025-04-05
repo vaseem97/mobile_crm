@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../pages/dashboard_page.dart';
 
 class DashboardHomeTab extends StatelessWidget {
   const DashboardHomeTab({Key? key}) : super(key: key);
@@ -111,6 +112,7 @@ class DashboardHomeTab extends StatelessWidget {
                 'Pending Repairs',
                 Icons.pending_actions,
                 AppColors.warning,
+                () => context.push('/repairs/pending'),
               ),
             ),
             const SizedBox(width: 12),
@@ -121,6 +123,7 @@ class DashboardHomeTab extends StatelessWidget {
                 'In Progress',
                 Icons.build,
                 AppColors.info,
+                () => context.push('/repairs/inprogress'),
               ),
             ),
           ],
@@ -135,6 +138,7 @@ class DashboardHomeTab extends StatelessWidget {
                 'Completed',
                 Icons.check_circle,
                 AppColors.success,
+                () => context.push('/repairs/completed'),
               ),
             ),
             const SizedBox(width: 12),
@@ -158,45 +162,50 @@ class DashboardHomeTab extends StatelessWidget {
     String value,
     String title,
     IconData icon,
-    Color color,
-  ) {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+    Color color, [
+    VoidCallback? onTap,
+  ]) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 20,
+                ),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 20,
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -217,7 +226,8 @@ class DashboardHomeTab extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                // Navigate to repairs tab
+                // Navigate to repairs tab (index 1)
+                DashboardPage.switchToTab(1);
               },
               child: const Text('View All'),
             ),
@@ -230,6 +240,7 @@ class DashboardHomeTab extends StatelessWidget {
           'Screen Replacement',
           'Pending',
           AppColors.warning,
+          '1',
         ),
         _buildRecentRepairItem(
           context,
@@ -237,6 +248,7 @@ class DashboardHomeTab extends StatelessWidget {
           'Battery Replacement',
           'In Progress',
           AppColors.info,
+          '2',
         ),
         _buildRecentRepairItem(
           context,
@@ -244,6 +256,7 @@ class DashboardHomeTab extends StatelessWidget {
           'Charging Port Repair',
           'Completed',
           AppColors.success,
+          '3',
         ),
       ],
     );
@@ -255,47 +268,73 @@ class DashboardHomeTab extends StatelessWidget {
     String repairType,
     String status,
     Color statusColor,
+    String repairId,
   ) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: InkWell(
         onTap: () {
-          // Navigate to repair details
-          context.push('/repair-details/123');
+          context.push('/repair-details/$repairId');
         },
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.1),
-          child: Icon(
-            Icons.phone_android,
-            color: statusColor,
-          ),
-        ),
-        title: Text(
-          deviceName,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        subtitle: Text(
-          repairType,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            status,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(
+                  Icons.smartphone,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      deviceName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      repairType,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  status,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
