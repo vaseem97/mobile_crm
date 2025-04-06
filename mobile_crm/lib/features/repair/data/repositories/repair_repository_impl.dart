@@ -201,4 +201,20 @@ class RepairRepositoryImpl {
       throw Exception('Failed to get repair jobs by phone: $e');
     }
   }
+
+  // Method to update image URLs after initial creation
+  Future<void> updateRepairJobImageUrls(
+      String repairId, List<String> imageUrls) async {
+    try {
+      await _firestoreService.updateDocument(
+        collectionPath: AppConstants.repairJobsCollection,
+        documentId: repairId,
+        data: {
+          'imageUrls': imageUrls,
+        },
+      );
+    } catch (e) {
+      throw Exception('Failed to update image URLs: $e');
+    }
+  }
 }

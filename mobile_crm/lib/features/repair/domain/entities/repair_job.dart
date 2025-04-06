@@ -10,6 +10,7 @@ class RepairJob extends Equatable {
   final String deviceBrand;
   final String deviceColor;
   final String devicePassword;
+  final String devicePattern;
   final String deviceImei;
   final String problem;
   final String diagnosis;
@@ -22,6 +23,7 @@ class RepairJob extends Equatable {
   final RepairStatus status;
   final String? notes;
   final List<String>? imageUrls;
+  final String? warrantyPeriod;
 
   const RepairJob({
     required this.id,
@@ -30,8 +32,9 @@ class RepairJob extends Equatable {
     this.customerEmail = '',
     required this.deviceModel,
     required this.deviceBrand,
-    required this.deviceColor,
+    this.deviceColor = '',
     this.devicePassword = '',
+    this.devicePattern = '',
     this.deviceImei = '',
     required this.problem,
     this.diagnosis = '',
@@ -44,6 +47,7 @@ class RepairJob extends Equatable {
     required this.status,
     this.notes,
     this.imageUrls,
+    this.warrantyPeriod,
   });
 
   @override
@@ -56,6 +60,7 @@ class RepairJob extends Equatable {
         deviceBrand,
         deviceColor,
         devicePassword,
+        devicePattern,
         deviceImei,
         problem,
         diagnosis,
@@ -68,6 +73,7 @@ class RepairJob extends Equatable {
         status,
         notes,
         imageUrls,
+        warrantyPeriod,
       ];
 
   RepairJob copyWith({
@@ -79,6 +85,7 @@ class RepairJob extends Equatable {
     String? deviceBrand,
     String? deviceColor,
     String? devicePassword,
+    String? devicePattern,
     String? deviceImei,
     String? problem,
     String? diagnosis,
@@ -91,6 +98,7 @@ class RepairJob extends Equatable {
     RepairStatus? status,
     String? notes,
     List<String>? imageUrls,
+    String? warrantyPeriod,
   }) {
     return RepairJob(
       id: id ?? this.id,
@@ -101,6 +109,7 @@ class RepairJob extends Equatable {
       deviceBrand: deviceBrand ?? this.deviceBrand,
       deviceColor: deviceColor ?? this.deviceColor,
       devicePassword: devicePassword ?? this.devicePassword,
+      devicePattern: devicePattern ?? this.devicePattern,
       deviceImei: deviceImei ?? this.deviceImei,
       problem: problem ?? this.problem,
       diagnosis: diagnosis ?? this.diagnosis,
@@ -113,6 +122,7 @@ class RepairJob extends Equatable {
       status: status ?? this.status,
       notes: notes ?? this.notes,
       imageUrls: imageUrls ?? this.imageUrls,
+      warrantyPeriod: warrantyPeriod ?? this.warrantyPeriod,
     );
   }
 }

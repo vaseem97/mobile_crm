@@ -10,8 +10,10 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../../../../core/widgets/repair_job_card.dart';
 import '../../../../core/services/service_locator.dart';
+import '../../../../core/services/storage_service.dart';
 import '../../data/repositories/repair_repository_impl.dart';
 import '../../domain/entities/repair_job.dart';
+import 'dart:math';
 
 class AddRepairPage extends StatefulWidget {
   const AddRepairPage({Key? key}) : super(key: key);
@@ -23,6 +25,9 @@ class AddRepairPage extends StatefulWidget {
 class _AddRepairPageState extends State<AddRepairPage> {
   final _formKey = GlobalKey<FormState>();
   final _repairRepository = getService<RepairRepositoryImpl>();
+  final _storageService = StorageService();
+  final _scrollController = ScrollController();
+  bool _isPatternActive = false;
 
   // Customer Info
   final _customerNameController = TextEditingController();
@@ -52,6 +57,132 @@ class _AddRepairPageState extends State<AddRepairPage> {
   final _customIssueController = TextEditingController();
   bool _isLoading = false;
   bool _canScanQR = false; // Feature flag for future QR scanner
+  String? _selectedWarranty; // <-- Add state variable for warranty
+
+  // Add these new methods for pattern drawing
+  void _handlePatternStart(Offset position) {
+    setState(() {
+      _clearPattern(); // Clear existing pattern when starting a new one
+      _isDragging = true;
+      _isPatternActive = true;
+
+      // Find the closest dot to the touch point
+      final cellSize = 240 / 3;
+      final row = (position.dy / cellSize).floor().clamp(0, 2);
+      final col = (position.dx / cellSize).floor().clamp(0, 2);
+
+      _addPatternDot(row, col);
+    });
+  }
+
+  void _handlePatternUpdate(Offset position) {
+    if (!_isDragging) return;
+
+    // Calculate which cell the user is hovering over
+    final cellSize = 240 / 3;
+    final row = (position.dy / cellSize).floor().clamp(0, 2);
+    final col = (position.dx / cellSize).floor().clamp(0, 2);
+
+    // Check if this is a new dot that's not already in the pattern
+    final List<int> newDot = [row, col];
+    bool isDotAlreadySelected = _patternDots.any(
+      (dot) => dot[0] == row && dot[1] == col,
+    );
+
+    // Only add the dot if it's new
+    if (!isDotAlreadySelected) {
+      // If there are existing dots, check if we need to add dots in between
+      if (_patternDots.isNotEmpty) {
+        final lastDot = _patternDots.last;
+        final rowDiff = row - lastDot[0];
+        final colDiff = col - lastDot[1];
+
+        // First check for special connections like diagonal through center
+        if (_canConnectDots(lastDot[0], lastDot[1], row, col)) {
+          // Special connection handled by the helper method
+        }
+        // Then check if we need to add intermediate dots for other connections
+        else if (rowDiff.abs() > 1 || colDiff.abs() > 1) {
+          // Add intermediate dots for smoother pattern
+          _addIntermediateDots(lastDot[0], lastDot[1], row, col);
+        }
+      }
+
+      _addPatternDot(row, col);
+    }
+  }
+
+  void _handlePatternEnd() {
+    setState(() {
+      _isDragging = false;
+      _isPatternActive = false;
+    });
+  }
+
+  void _addIntermediateDots(
+      int startRow, int startCol, int endRow, int endCol) {
+    // Calculate the number of steps needed
+    final rowDiff = endRow - startRow;
+    final colDiff = endCol - startCol;
+    final steps = max(rowDiff.abs(), colDiff.abs());
+
+    // Add dots along the path
+    for (int i = 1; i < steps; i++) {
+      final ratio = i / steps;
+      // Use precise casting to ensure accurate intermediate positions
+      final intermediateRow = startRow + (rowDiff * ratio).round();
+      final intermediateCol = startCol + (colDiff * ratio).round();
+
+      // Ensure we're within grid bounds
+      if (intermediateRow >= 0 &&
+          intermediateRow <= 2 &&
+          intermediateCol >= 0 &&
+          intermediateCol <= 2) {
+        // Check if this dot is already selected
+        bool isDotAlreadySelected = _patternDots.any(
+          (dot) => dot[0] == intermediateRow && dot[1] == intermediateCol,
+        );
+
+        if (!isDotAlreadySelected) {
+          _addPatternDot(intermediateRow, intermediateCol);
+        }
+      }
+    }
+  }
+
+  // Simplified helper method to handle specific dot connections that might be missed
+  bool _canConnectDots(int startRow, int startCol, int endRow, int endCol) {
+    // Calculate the differences for L-shape detection
+    final int rowDiff = endRow - startRow;
+    final int colDiff = endCol - startCol;
+
+    // Common problematic connections like connecting 1→5→9 or 3→5→7
+    // Check for diagonal through center
+    if ((startRow == 0 && startCol == 0 && endRow == 2 && endCol == 2) || // 1→9
+        (startRow == 0 && startCol == 2 && endRow == 2 && endCol == 0) || // 3→7
+        (startRow == 2 && startCol == 0 && endRow == 0 && endCol == 2) || // 7→3
+        (startRow == 2 && startCol == 2 && endRow == 0 && endCol == 0)) {
+      // 9→1
+
+      // Add the center dot (5) if not already in the pattern
+      bool hasCenterDot = _patternDots.any((dot) => dot[0] == 1 && dot[1] == 1);
+      if (!hasCenterDot) {
+        _addPatternDot(1, 1); // Add center dot (row 1, col 1)
+      }
+      return true;
+    }
+
+    // Knight moves (L-shapes) - need to add intermediate dots
+    if ((rowDiff.abs() == 2 && colDiff.abs() == 1) ||
+        (rowDiff.abs() == 1 && colDiff.abs() == 2)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Add _isDragging variable to the state
+  bool _isDragging = false;
 
   @override
   void dispose() {
@@ -63,6 +194,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
     _notesController.dispose();
     _advanceAmountController.dispose();
     _customIssueController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -195,64 +327,119 @@ class _AddRepairPageState extends State<AddRepairPage> {
       _isLoading = true;
     });
 
+    String? tempRepairId;
+    List<String> uploadedImageUrls = [];
+
     try {
-      // Get estimated cost as double
+      // Show initial loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Creating repair job...'),
+          duration: Duration(seconds: 60), // Show indefinitely until hidden
+          backgroundColor: Colors.grey,
+        ),
+      );
+
+      // 1. Prepare RepairJob data (without images first)
       double estimatedCost = 0.0;
       if (_estimatedCostController.text.isNotEmpty) {
         estimatedCost = double.parse(_estimatedCostController.text);
       }
-
-      // Get advance amount as double
       double advanceAmount = 0.0;
       if (_advanceAmountController.text.isNotEmpty) {
         advanceAmount = double.parse(_advanceAmountController.text);
       }
 
-      // Create RepairJob entity
-      final newRepair = RepairJob(
-        id: '', // Will be generated by repository
+      final newRepairData = RepairJob(
+        id: 'TEMP_ID', // Placeholder ID initially
         customerName: _customerNameController.text,
         customerPhone: _customerPhoneController.text,
         deviceModel: _deviceModelController.text,
         deviceBrand: _selectedBrand!,
-        deviceColor: '', // Empty since we removed the field
-        devicePassword: _devicePasswordController.text,
-        deviceImei: '', // Empty since we removed the field
-        problem: _selectedParts
-            .join(', '), // Using selected parts as problem description
+        deviceColor: '',
+        devicePassword:
+            _passwordType == 'PIN' ? _devicePasswordController.text : '',
+        devicePattern:
+            _passwordType == 'Pattern' ? _devicePasswordController.text : '',
+        deviceImei: '',
+        problem: _selectedParts.join(', '),
         partsToReplace: _selectedParts,
         estimatedCost: estimatedCost,
-        advanceAmount:
-            advanceAmount, // Add advance amount if available in RepairJob entity
+        advanceAmount: advanceAmount,
         createdAt: DateTime.now(),
         status: RepairStatus.pending,
         notes: _notesController.text,
-        // TODO: Upload images and save URLs
+        imageUrls: [], // Start with empty URLs
+        warrantyPeriod: _selectedWarranty,
       );
 
-      // Save to Firestore via repository
-      final repairId = await _repairRepository.createRepairJob(newRepair);
+      // 2. Create initial document in Firestore to get the ID
+      tempRepairId = await _repairRepository.createRepairJob(newRepairData);
+      print('Initial repair document created with ID: $tempRepairId');
 
-      if (mounted) {
-        // Show success message
+      // 3. Upload images if any
+      if (_deviceImages.isNotEmpty && tempRepairId != null) {
+        // Show image upload indicator
+        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide previous
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Repair job #$repairId created successfully!'),
+            content: Text('Uploading ${_deviceImages.length} image(s)...'),
+            duration: const Duration(seconds: 60),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+
+        uploadedImageUrls = await _storageService.uploadRepairImages(
+          _deviceImages,
+          tempRepairId,
+        );
+        print('Uploaded image URLs: $uploadedImageUrls');
+
+        // 4. Update the document with image URLs
+        if (uploadedImageUrls.isNotEmpty) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide previous
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Finalizing repair details...'),
+              duration: Duration(seconds: 60),
+              backgroundColor: Colors.blueGrey,
+            ),
+          );
+          await _repairRepository.updateRepairJobImageUrls(
+            tempRepairId,
+            uploadedImageUrls,
+          );
+          print('Repair document $tempRepairId updated with image URLs.');
+        }
+      }
+
+      ScaffoldMessenger.of(context)
+          .hideCurrentSnackBar(); // Hide any loading indicators
+
+      if (mounted) {
+        // Show final success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Repair job #$tempRepairId created successfully!'),
             backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
 
         // Navigate back with the new repair ID
-        context.pop(repairId);
+        context.pop(tempRepairId);
       }
     } catch (e) {
-      // Show error message
+      print('Error during repair job creation/upload: ${e.toString()}');
+      ScaffoldMessenger.of(context)
+          .hideCurrentSnackBar(); // Hide loading indicator
+      // Show detailed error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error creating repair job: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -427,6 +614,286 @@ class _AddRepairPageState extends State<AddRepairPage> {
     );
   }
 
+  void _showPatternDialog() async {
+    // Temporarily store the current pattern in case the user cancels
+    final initialPatternDots =
+        List<List<int>>.from(_patternDots.map((dot) => List<int>.from(dot)));
+    final initialPatternDescription = List<String>.from(_patternDescription);
+    final initialDevicePasswordText = _devicePasswordController.text;
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false, // Prevent closing by tapping outside
+      builder: (context) {
+        // Local state management for the dialog
+        List<List<int>> currentDots = List<List<int>>.from(
+            initialPatternDots.map((dot) => List<int>.from(dot)));
+        List<String> currentDescription =
+            List<String>.from(initialPatternDescription);
+        bool isDialogDragging = false;
+
+        // Helper functions specific to the dialog's state
+        String getPositionNameDialog(int row, int col) {
+          final positions = [
+            ['Top-Left', 'Top-Center', 'Top-Right'],
+            ['Middle-Left', 'Center', 'Middle-Right'],
+            ['Bottom-Left', 'Bottom-Center', 'Bottom-Right'],
+          ];
+          return positions[row][col];
+        }
+
+        void addPatternDotDialog(
+            int row, int col, Function(Function()) setStateDialog) {
+          setStateDialog(() {
+            currentDots.add([row, col]);
+            currentDescription.add(getPositionNameDialog(row, col));
+          });
+        }
+
+        void clearPatternDialog(Function(Function()) setStateDialog) {
+          setStateDialog(() {
+            currentDots = [];
+            currentDescription = [];
+          });
+        }
+
+        // Intermediate dot logic specifically for the dialog
+        void addIntermediateDotsDialog(int startRow, int startCol, int endRow,
+            int endCol, Function(Function()) setStateDialog) {
+          final rowDiff = endRow - startRow;
+          final colDiff = endCol - startCol;
+          final steps = max(rowDiff.abs(), colDiff.abs());
+
+          for (int i = 1; i < steps; i++) {
+            final ratio = i / steps;
+            final intermediateRow = (startRow + (rowDiff * ratio)).round();
+            final intermediateCol = (startCol + (colDiff * ratio)).round();
+
+            if (intermediateRow >= 0 &&
+                intermediateRow <= 2 &&
+                intermediateCol >= 0 &&
+                intermediateCol <= 2) {
+              bool isDotAlreadySelected = currentDots.any((dot) =>
+                  dot[0] == intermediateRow && dot[1] == intermediateCol);
+              if (!isDotAlreadySelected) {
+                // Special check for diagonals passing *through* center
+                if (rowDiff.abs() == 2 &&
+                    colDiff.abs() == 2 &&
+                    intermediateRow == 1 &&
+                    intermediateCol == 1) {
+                  addPatternDotDialog(
+                      intermediateRow, intermediateCol, setStateDialog);
+                }
+                // Check for standard intermediate dots (not just diagonal center)
+                else if ((rowDiff.abs() > 0 || colDiff.abs() > 0) &&
+                    !(rowDiff.abs() == 2 && colDiff.abs() == 2)) {
+                  addPatternDotDialog(
+                      intermediateRow, intermediateCol, setStateDialog);
+                }
+              }
+            }
+          }
+        }
+
+        // Handle gesture updates within the dialog
+        void handlePatternStartDialog(
+            Offset position, Function(Function()) setStateDialog) {
+          setStateDialog(() {
+            clearPatternDialog(setStateDialog);
+            isDialogDragging = true;
+            final cellSize = 240.0 / 3;
+            final row = (position.dy / cellSize).floor().clamp(0, 2);
+            final col = (position.dx / cellSize).floor().clamp(0, 2);
+            addPatternDotDialog(row, col, setStateDialog);
+          });
+        }
+
+        void handlePatternUpdateDialog(
+            Offset position, Function(Function()) setStateDialog) {
+          if (!isDialogDragging) return;
+
+          final cellSize = 240.0 / 3;
+          final row = (position.dy / cellSize).floor().clamp(0, 2);
+          final col = (position.dx / cellSize).floor().clamp(0, 2);
+
+          bool isDotAlreadySelected =
+              currentDots.any((dot) => dot[0] == row && dot[1] == col);
+
+          if (!isDotAlreadySelected) {
+            if (currentDots.isNotEmpty) {
+              final lastDot = currentDots.last;
+              addIntermediateDotsDialog(
+                  lastDot[0], lastDot[1], row, col, setStateDialog);
+            }
+            addPatternDotDialog(row, col, setStateDialog);
+          }
+        }
+
+        void handlePatternEndDialog(Function(Function()) setStateDialog) {
+          setStateDialog(() {
+            isDialogDragging = false;
+          });
+        }
+
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Draw Device Pattern'),
+              contentPadding: const EdgeInsets.all(16),
+              content: SingleChildScrollView(
+                // Prevents overflow if content is large
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentDescription.isEmpty
+                          ? 'Connect the dots to create a pattern.'
+                          : 'Pattern: ${currentDescription.join(' → ')}',
+                      style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: currentDescription.isEmpty
+                              ? Colors.grey
+                              : AppColors.primary),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: 240,
+                      height: 240,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior
+                            .opaque, // Important for accurate hit testing
+                        onPanStart: (details) => handlePatternStartDialog(
+                            details.localPosition, setStateDialog),
+                        onPanUpdate: (details) => handlePatternUpdateDialog(
+                            details.localPosition, setStateDialog),
+                        onPanEnd: (_) => handlePatternEndDialog(setStateDialog),
+                        child: Stack(
+                          children: [
+                            // Pattern line
+                            if (currentDots.length > 1)
+                              CustomPaint(
+                                size: const Size(240, 240),
+                                painter: PatternLinePainter(currentDots),
+                              ),
+                            // Dots grid
+                            GridView.builder(
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                              ),
+                              itemCount: 9,
+                              itemBuilder: (context, index) {
+                                final row = index ~/ 3;
+                                final col = index % 3;
+                                final isDotSelected = currentDots.any(
+                                    (dot) => dot[0] == row && dot[1] == col);
+                                final isStartDot = currentDots.isNotEmpty &&
+                                    currentDots.first[0] == row &&
+                                    currentDots.first[1] == col;
+                                final isEndDot = currentDots.isNotEmpty &&
+                                    currentDots.last[0] == row &&
+                                    currentDots.last[1] == col;
+                                final dotIndex = currentDots.indexWhere(
+                                    (dot) => dot[0] == row && dot[1] == col);
+
+                                return Center(
+                                  child: Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: isDotSelected
+                                          ? AppColors.primary
+                                          : Colors.grey.shade300,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isDotSelected
+                                            ? AppColors.primary
+                                            : Colors.grey.shade400,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: isStartDot
+                                          ? const Text('S',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold))
+                                          : isEndDot
+                                              ? const Text('E',
+                                                  style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold))
+                                              : isDotSelected
+                                                  ? Text('${dotIndex + 1}',
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold))
+                                                  : null,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => clearPatternDialog(setStateDialog),
+                  child: const Text('Clear'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context), // Cancel
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: currentDots.length >= 4 // Require at least 4 dots
+                      ? () {
+                          // Return the pattern description string
+                          Navigator.pop(
+                              context, currentDescription.join(' → '));
+                        }
+                      : null, // Disable if pattern is too short
+                  child: const Text('Save Pattern'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // Update the main page state if a pattern was saved
+    if (result != null) {
+      setState(() {
+        _devicePasswordController.text = result;
+        // Update the main state's pattern dots/description for consistency
+        // (though they are mainly managed visually by the dialog now)
+        _patternDescription = result.split(' → ');
+        // Potentially reconstruct _patternDots from result if needed elsewhere
+      });
+    } else {
+      // User cancelled, revert to the initial state if needed (optional)
+      // setState(() {
+      //   _patternDots = initialPatternDots;
+      //   _patternDescription = initialPatternDescription;
+      //   _devicePasswordController.text = initialDevicePasswordText;
+      // });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -450,6 +917,10 @@ class _AddRepairPageState extends State<AddRepairPage> {
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: _isPatternActive
+                ? const NeverScrollableScrollPhysics()
+                : const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -750,136 +1221,44 @@ class _AddRepairPageState extends State<AddRepairPage> {
                   controller: _devicePasswordController,
                   prefixIcon: const Icon(Icons.lock),
                 )
-              else
+              else // Pattern selected
                 Column(
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Draw pattern by tapping dots in sequence',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: 240,
-                            height: 240,
-                            child: Stack(
-                              children: [
-                                // Pattern line
-                                if (_patternDots.length > 1)
-                                  CustomPaint(
-                                    size: const Size(240, 240),
-                                    painter: PatternLinePainter(_patternDots),
-                                  ),
-                                // Dots grid
-                                GridView.builder(
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                  ),
-                                  itemCount: 9,
-                                  itemBuilder: (context, index) {
-                                    final row = index ~/ 3;
-                                    final col = index % 3;
-                                    final isDotSelected = _patternDots.any(
-                                        (dot) =>
-                                            dot[0] == row && dot[1] == col);
-                                    final isStartDot = index == _startDot;
-                                    final isEndDot = _patternDots.isNotEmpty &&
-                                        _patternDots.last[0] == row &&
-                                        _patternDots.last[1] == col;
-
-                                    return GestureDetector(
-                                      onTap: () => _addPatternDot(row, col),
-                                      child: Center(
-                                        child: Container(
-                                          width: 50,
-                                          height: 50,
-                                          decoration: BoxDecoration(
-                                            color: isDotSelected
-                                                ? AppColors.primary
-                                                : Colors.grey.shade300,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: isDotSelected
-                                                  ? AppColors.primary
-                                                  : Colors.grey.shade400,
-                                              width: 2,
-                                            ),
-                                          ),
-                                          child: Center(
-                                            child: isStartDot
-                                                ? const Text(
-                                                    'S',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  )
-                                                : isEndDot
-                                                    ? const Text(
-                                                        'E',
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      )
-                                                    : isDotSelected
-                                                        ? Text(
-                                                            '${_patternDots.indexWhere((dot) => dot[0] == row && dot[1] == col) + 1}',
-                                                            style:
-                                                                const TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                          )
-                                                        : null,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: _clearPattern,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Clear Pattern'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                            ),
-                          ),
-                        ],
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.edit_attributes),
+                      label: Text(_patternDescription.isEmpty
+                          ? 'Set Device Pattern'
+                          : 'Edit Pattern'),
+                      onPressed: _showPatternDialog,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(
+                            color: AppColors.primary.withOpacity(0.5)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                     if (_patternDescription.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                            color: AppColors.primary.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: AppColors.primary.withOpacity(0.2))),
                         child: Text(
-                          'Pattern: ${_patternDescription.join(' → ')}',
+                          'Current Pattern: ${_patternDescription.join(' → ')}',
                           style: TextStyle(
                             color: AppColors.primary,
                             fontStyle: FontStyle.italic,
+                            fontSize: 13,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
@@ -1094,6 +1473,20 @@ class _AddRepairPageState extends State<AddRepairPage> {
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
           ],
+        ),
+        const SizedBox(height: 16),
+        // Add Warranty Dropdown Here
+        _buildDropdownField(
+          label: 'Warranty Period (Optional)',
+          value: _selectedWarranty,
+          items: AppConstants.warrantyOptions,
+          prefixIcon: const Icon(Icons.shield_outlined),
+          onChanged: (value) {
+            setState(() {
+              _selectedWarranty = value;
+            });
+          },
+          hint: 'Select warranty period',
         ),
         const SizedBox(height: 16),
         CustomTextField(

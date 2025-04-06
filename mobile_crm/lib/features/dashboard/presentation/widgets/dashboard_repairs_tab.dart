@@ -226,9 +226,15 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
                 final newStatus = await _showStatusUpdateDialog(context);
                 if (newStatus != null && newStatus != job.status) {
                   try {
-                    await _repairRepository.updateRepairJob(
-                      job.copyWith(status: newStatus),
+                    // Add deliveredAt timestamp when status is changed to delivered
+                    final updatedJob = job.copyWith(
+                      status: newStatus,
+                      deliveredAt: newStatus == RepairStatus.delivered
+                          ? DateTime.now()
+                          : job.deliveredAt,
                     );
+
+                    await _repairRepository.updateRepairJob(updatedJob);
                     setState(() {}); // Refresh the list
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(

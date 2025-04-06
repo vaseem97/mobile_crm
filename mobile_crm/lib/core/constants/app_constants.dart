@@ -73,4 +73,15 @@ class AppConstants {
   static const String phoneRegex = r'^\d{10}$';
   static const String emailRegex = r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$';
   static const String passwordRegex = r'^.{6,}$';
+
+  // Warranty Options
+  static const List<String> warrantyOptions = [
+    'No Warranty',
+    '15 Days',
+    '30 Days',
+    '60 Days',
+    '90 Days',
+    '6 Months',
+    '1 Year',
+  ];
 }

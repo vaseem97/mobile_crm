@@ -23,6 +23,7 @@ class RepairJobModel extends RepairJob {
     required super.status,
     super.notes,
     super.imageUrls,
+    super.warrantyPeriod,
   });
 
   factory RepairJobModel.fromJson(Map<String, dynamic> json) {
@@ -60,6 +61,7 @@ class RepairJobModel extends RepairJob {
       imageUrls: json['imageUrls'] != null
           ? List<String>.from(json['imageUrls'] as List)
           : null,
+      warrantyPeriod: json['warrantyPeriod'],
     );
   }
 
@@ -85,6 +87,7 @@ class RepairJobModel extends RepairJob {
       'status': status.name,
       'notes': notes,
       'imageUrls': imageUrls,
+      'warrantyPeriod': warrantyPeriod,
     };
   }
 
@@ -110,6 +113,7 @@ class RepairJobModel extends RepairJob {
       status: entity.status,
       notes: entity.notes,
       imageUrls: entity.imageUrls,
+      warrantyPeriod: entity.warrantyPeriod,
     );
   }
 }

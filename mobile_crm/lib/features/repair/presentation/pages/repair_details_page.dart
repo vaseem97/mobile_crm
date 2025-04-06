@@ -147,7 +147,42 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildRepairCard(),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.receipt_long, color: AppColors.primary),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Repair ID',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    Text(
+                      _repairJob!.id,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildStatusInfoCard(),
           const SizedBox(height: 16),
           _buildRepairIssueCard(),
           const SizedBox(height: 16),
@@ -187,7 +222,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     );
   }
 
-  Widget _buildRepairCard() {
+  Widget _buildStatusInfoCard() {
     Color statusColor;
     IconData statusIcon;
 
@@ -214,17 +249,13 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
               children: [
                 Icon(Icons.build_circle, color: AppColors.primary, size: 24),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Repair #${_repairJob!.id}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                Text(
+                  'Device Status',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
-                const SizedBox(width: 8),
+                const Spacer(),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -329,188 +360,28 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.3),
-                ),
-              ),
-              child: Text(
-                _repairJob!.problem,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            if (_repairJob!.partsToReplace.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Parts to Replace:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            if (_repairJob!.partsToReplace.isNotEmpty)
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: _repairJob!.partsToReplace.map((part) {
                   return Chip(
                     label: Text(part),
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    labelStyle: TextStyle(fontSize: 12),
+                    labelStyle: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.primary,
+                    ),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   );
                 }).toList(),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentInfoCard() {
-    if (_repairJob == null) return const SizedBox.shrink();
-
-    final formatter = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
-
-    final bool hasAdvance = _repairJob!.advanceAmount > 0;
-    final double balanceAmount =
-        _repairJob!.estimatedCost - _repairJob!.advanceAmount;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.payments, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Payment Information',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total Cost:',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  Text(
-                    formatter.format(_repairJob!.estimatedCost),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (hasAdvance) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.green.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Advance:',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          Text(
-                            formatter.format(_repairJob!.advanceAmount),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.orange.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Balance:',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          Text(
-                            formatter.format(balanceAmount),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: balanceAmount > 0
-                                  ? Colors.orange.shade700
-                                  : Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (_repairJob!.notes != null && _repairJob!.notes!.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Notes:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
+              )
+            else
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -520,9 +391,119 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                   border: Border.all(color: Colors.grey.shade300),
                 ),
                 child: Text(
-                  _repairJob!.notes!,
-                  style: TextStyle(fontSize: 14),
+                  _repairJob!.problem,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentInfoCard() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.payments, color: AppColors.primary, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Payment Information',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total Repair Cost',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                Text(
+                  '\$${_repairJob!.estimatedCost.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (_repairJob!.advanceAmount > 0) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Advance Payment',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: AppColors.success.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      '\$${_repairJob!.advanceAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Balance Due',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  Text(
+                    '\$${(_repairJob!.estimatedCost - _repairJob!.advanceAmount).toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _repairJob!.advanceAmount > 0
+                          ? AppColors.warning
+                          : Colors.black,
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
@@ -599,6 +580,16 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                       ),
                     ),
                 ],
+              ),
+            ],
+            if (_repairJob!.warrantyPeriod != null &&
+                _repairJob!.warrantyPeriod!.isNotEmpty &&
+                _repairJob!.warrantyPeriod! != 'No Warranty') ...[
+              const SizedBox(height: 12),
+              _buildInfoItem(
+                'Warranty',
+                _repairJob!.warrantyPeriod!,
+                Icons.shield_outlined,
               ),
             ],
           ],
@@ -752,20 +743,115 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             children: [
               if (isPattern) ...[
                 Container(
-                  width: 200,
-                  height: 200,
+                  width: 250,
+                  height: 250,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
-                  child: Center(
-                    child: Text(
-                      password,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 8,
+                  child: Stack(
+                    children: [
+                      // Draw lines connecting the selected dots
+                      CustomPaint(
+                        size: const Size(250, 250),
+                        painter: PatternViewPainter(pattern: password),
                       ),
+
+                      // Draw the 3x3 grid of dots
+                      GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                        ),
+                        itemCount: 9,
+                        itemBuilder: (context, index) {
+                          final row = index ~/ 3;
+                          final col = index % 3;
+
+                          // Check if this dot is part of the pattern
+                          final String positionName =
+                              _getPositionName(row, col);
+                          final bool isDotSelected =
+                              password.contains(positionName);
+
+                          // Determine if this is the start or end dot
+                          final bool isStartDot =
+                              password.startsWith(positionName);
+                          final bool isEndDot = password.endsWith(positionName);
+
+                          // Calculate the sequence number of this dot in the pattern
+                          int sequenceNumber = -1;
+                          if (isDotSelected) {
+                            final List<String> dots = password.split(' → ');
+                            sequenceNumber = dots.indexOf(positionName) + 1;
+                          }
+
+                          return Center(
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isDotSelected
+                                    ? AppColors.primary
+                                    : Colors.grey.shade300,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDotSelected
+                                      ? AppColors.primary
+                                      : Colors.grey.shade400,
+                                  width: 2,
+                                ),
+                              ),
+                              child: isDotSelected
+                                  ? Center(
+                                      child: isStartDot
+                                          ? const Text(
+                                              'S',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : isEndDot
+                                              ? const Text(
+                                                  'E',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                )
+                                              : Text(
+                                                  '$sequenceNumber',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border:
+                        Border.all(color: AppColors.primary.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    password,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
@@ -788,11 +874,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              Text(
-                isPattern ? 'Pattern: $password' : 'Password: $password',
-                style: TextStyle(fontSize: 16),
-              ),
             ],
           ),
         ),
@@ -804,6 +885,16 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
         ],
       ),
     );
+  }
+
+  // Helper method to get position name from grid coordinates
+  String _getPositionName(int row, int col) {
+    final positions = [
+      ['Top-Left', 'Top-Center', 'Top-Right'],
+      ['Middle-Left', 'Center', 'Middle-Right'],
+      ['Bottom-Left', 'Bottom-Center', 'Bottom-Right'],
+    ];
+    return positions[row][col];
   }
 
   Widget _buildCustomerInfoCard() {
@@ -943,12 +1034,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
   }
 
   Widget _buildDeviceImagesSection() {
-    if (_repairJob == null ||
-        _repairJob!.imageUrls == null ||
-        _repairJob!.imageUrls!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -959,203 +1044,65 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           children: [
             Row(
               children: [
-                Icon(Icons.photo_library, color: AppColors.primary),
+                Icon(Icons.photo_library, color: AppColors.primary, size: 24),
                 const SizedBox(width: 8),
                 Text(
-                  'Device Photos (${_repairJob!.imageUrls!.length})',
+                  'Device Images',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (_repairJob!.imageUrls!.length == 1)
-              GestureDetector(
-                onTap: () {
-                  _showFullSizeImage(_repairJob!.imageUrls![0]);
-                },
-                child: Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      _repairJob!.imageUrls![0],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildImageErrorWidget();
-                      },
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return _buildImageLoadingWidget(loadingProgress);
-                      },
-                    ),
-                  ),
-                ),
-              )
-            else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1,
-                ),
-                itemCount: _repairJob!.imageUrls!.length > 4
-                    ? 4
-                    : _repairJob!.imageUrls!.length,
-                itemBuilder: (context, index) {
-                  final bool hasMore =
-                      _repairJob!.imageUrls!.length > 4 && index == 3;
-                  return GestureDetector(
-                    onTap: () {
-                      _showFullSizeImage(_repairJob!.imageUrls![index]);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.network(
-                              _repairJob!.imageUrls![index],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return _buildImageErrorWidget();
-                              },
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return _buildImageLoadingWidget(
-                                    loadingProgress);
-                              },
-                            ),
-                            if (hasMore)
-                              Container(
-                                color: Colors.black.withOpacity(0.7),
-                                child: Center(
-                                  child: Text(
-                                    '+${_repairJob!.imageUrls!.length - 3}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+            const Divider(),
             const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                _showAllImages();
-              },
-              child: Text(
-                'View All Images',
-                style: TextStyle(color: AppColors.primary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageErrorWidget() {
-    return Container(
-      color: Colors.grey.shade200,
-      child: const Center(
-        child: Icon(Icons.broken_image, color: Colors.grey, size: 48),
-      ),
-    );
-  }
-
-  Widget _buildImageLoadingWidget(ImageChunkEvent loadingProgress) {
-    return Container(
-      color: Colors.grey.shade200,
-      child: Center(
-        child: CircularProgressIndicator(
-          value: loadingProgress.expectedTotalBytes != null
-              ? loadingProgress.cumulativeBytesLoaded /
-                  loadingProgress.expectedTotalBytes!
-              : null,
-        ),
-      ),
-    );
-  }
-
-  void _showAllImages() {
-    if (_repairJob == null ||
-        _repairJob!.imageUrls == null ||
-        _repairJob!.imageUrls!.isEmpty) {
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppBar(
-              title:
-                  Text('All Device Images (${_repairJob!.imageUrls!.length})'),
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
                 itemCount: _repairJob!.imageUrls!.length,
                 itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showFullSizeImage(_repairJob!.imageUrls![index]);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _repairJob!.imageUrls![index],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildImageErrorWidget();
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return _buildImageLoadingWidget(loadingProgress);
-                          },
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        _showFullImage(_repairJob!.imageUrls![index]);
+                      },
+                      child: Container(
+                        width: 120,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _repairJob!.imageUrls![index],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes !=
+                                          null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey.shade200,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.error_outline,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -1169,7 +1116,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     );
   }
 
-  void _showFullSizeImage(String imageUrl) {
+  void _showFullImage(String imageUrl) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -1177,22 +1124,37 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AppBar(
-              title: const Text('Device Image'),
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Device Image',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
             ),
-            Flexible(
+            Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
               child: InteractiveViewer(
                 panEnabled: true,
-                boundaryMargin: const EdgeInsets.all(20),
+                boundaryMargin: const EdgeInsets.all(16),
                 minScale: 0.5,
-                maxScale: 4,
+                maxScale: 3.0,
                 child: Image.network(
                   imageUrl,
+                  fit: BoxFit.contain,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Center(
@@ -1201,6 +1163,18 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                             ? loadingProgress.cumulativeBytesLoaded /
                                 loadingProgress.expectedTotalBytes!
                             : null,
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 48,
+                        ),
                       ),
                     );
                   },
@@ -1419,4 +1393,63 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
 // Helper function to find minimum of two integers
 int min(int a, int b) {
   return a < b ? a : b;
+}
+
+class PatternViewPainter extends CustomPainter {
+  final String pattern;
+
+  PatternViewPainter({required this.pattern});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.primary
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final List<String> dots = pattern.split(' → ');
+    if (dots.length <= 1) return;
+
+    final Map<String, Offset> positions = {};
+
+    // Calculate grid cell size
+    final cellWidth = size.width / 3;
+    final cellHeight = size.height / 3;
+
+    // Create a map of positions
+    for (int row = 0; row < 3; row++) {
+      for (int col = 0; col < 3; col++) {
+        final String posName = _getPositionName(row, col);
+        // Place the center of each dot
+        positions[posName] = Offset(
+          (col * cellWidth) + (cellWidth / 2),
+          (row * cellHeight) + (cellHeight / 2),
+        );
+      }
+    }
+
+    // Draw lines connecting the dots
+    for (int i = 0; i < dots.length - 1; i++) {
+      final startDot = dots[i];
+      final endDot = dots[i + 1];
+
+      if (positions.containsKey(startDot) && positions.containsKey(endDot)) {
+        canvas.drawLine(positions[startDot]!, positions[endDot]!, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
+
+  // Helper method to get position name for pattern dots
+  String _getPositionName(int row, int col) {
+    final positions = [
+      ['Top-Left', 'Top-Center', 'Top-Right'],
+      ['Middle-Left', 'Center', 'Middle-Right'],
+      ['Bottom-Left', 'Bottom-Center', 'Bottom-Right'],
+    ];
+    return positions[row][col];
+  }
 }
