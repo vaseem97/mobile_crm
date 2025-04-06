@@ -6,6 +6,7 @@ import '../../../../core/services/service_locator.dart';
 import '../../../../core/widgets/repair_job_card.dart';
 import '../../domain/entities/repair_job.dart';
 import '../models/repair_job_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RepairRepositoryImpl {
   final FirestoreService _firestoreService = getService<FirestoreService>();
@@ -15,34 +16,48 @@ class RepairRepositoryImpl {
   // Create a new repair job
   Future<String> createRepairJob(RepairJob repairJob) async {
     try {
-      // Generate a unique ID for the repair
-      final String repairId = _uuid.v4();
-
-      // Convert entity to model and add the generated ID
-      final RepairJobModel repairModel =
-          RepairJobModel.fromEntity(repairJob.copyWith(id: repairId));
-
-      // Add shop ID from current user
-      final userId = _authService.currentUser?.uid;
-      if (userId == null) {
+      final user = _authService.currentUser;
+      if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      // Convert to JSON
-      final repairData = repairModel.toJson();
-      repairData['shopId'] = userId;
-      repairData['createdBy'] = userId;
-      repairData['createdAt'] = DateTime.now().toIso8601String();
-      repairData['updatedAt'] = DateTime.now().toIso8601String();
+      // Generate a friendly ID in format REP-YYMMxxx
+      final now = DateTime.now();
+      final yearMonth =
+          '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}';
 
-      // Save to Firestore
-      await _firestoreService.setDocument(
-        collectionPath: AppConstants.repairJobsCollection,
-        documentId: repairId,
-        data: repairData,
+      // Get count of repairs for this month to create sequential number
+      final monthStart = DateTime(now.year, now.month, 1);
+      final countSnapshot = await _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .where('shopId', isEqualTo: user.uid)
+          .where('createdAt',
+              isGreaterThanOrEqualTo: monthStart.toIso8601String())
+          .get();
+
+      // Format sequential number with leading zeros (e.g., 001, 012, 123)
+      final count = countSnapshot.docs.length + 1;
+      final sequentialNum = count.toString().padLeft(3, '0');
+
+      // Create friendly ID
+      final friendlyId = 'REP-$yearMonth$sequentialNum';
+
+      // Create data map
+      final model = RepairJobModel.fromEntity(
+        repairJob.copyWith(id: friendlyId),
       );
+      final data = model.toJson();
 
-      return repairId;
+      // Add shop ID
+      data['shopId'] = user.uid;
+
+      // Create document with the friendly ID as document ID
+      await _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .doc(friendlyId)
+          .set(data);
+
+      return friendlyId;
     } catch (e) {
       throw Exception('Failed to create repair job: $e');
     }
@@ -140,20 +155,17 @@ class RepairRepositoryImpl {
   // Get repair jobs by status
   Future<List<RepairJob>> getRepairJobsByStatus(RepairStatus status) async {
     try {
-      final userId = _authService.currentUser?.uid;
-      if (userId == null) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      final snapshot = await _firestoreService.queryCollection(
-        collectionPath: AppConstants.repairJobsCollection,
-        filters: [
-          ['shopId', userId],
-          ['status', status.name],
-        ],
-        orderBy: 'createdAt',
-        descending: true,
-      );
+      final snapshot = await _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .where('shopId', isEqualTo: user.uid)
+          .where('status', isEqualTo: status.name)
+          .orderBy('createdAt', descending: true)
+          .get();
 
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -162,6 +174,31 @@ class RepairRepositoryImpl {
       }).toList();
     } catch (e) {
       throw Exception('Failed to get repair jobs by status: $e');
+    }
+  }
+
+  // Get repair jobs by customer phone number
+  Future<List<RepairJob>> getRepairJobsByPhone(String phoneNumber) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final snapshot = await _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .where('shopId', isEqualTo: user.uid)
+          .where('customerPhone', isEqualTo: phoneNumber)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Ensure ID is set
+        return RepairJobModel.fromJson(data);
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get repair jobs by phone: $e');
     }
   }
 }

@@ -16,6 +16,7 @@ class RepairJobModel extends RepairJob {
     super.diagnosis,
     super.partsToReplace,
     required super.estimatedCost,
+    required super.advanceAmount,
     required super.createdAt,
     super.completedAt,
     super.deliveredAt,
@@ -41,6 +42,9 @@ class RepairJobModel extends RepairJob {
           ? List<String>.from(json['partsToReplace'] as List)
           : const [],
       estimatedCost: (json['estimatedCost'] as num).toDouble(),
+      advanceAmount: json['advanceAmount'] != null
+          ? (json['advanceAmount'] as num).toDouble()
+          : 0.0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       completedAt: json['completedAt'] != null
           ? DateTime.parse(json['completedAt'] as String)
@@ -74,6 +78,7 @@ class RepairJobModel extends RepairJob {
       'diagnosis': diagnosis,
       'partsToReplace': partsToReplace,
       'estimatedCost': estimatedCost,
+      'advanceAmount': advanceAmount,
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'deliveredAt': deliveredAt?.toIso8601String(),
@@ -98,6 +103,7 @@ class RepairJobModel extends RepairJob {
       diagnosis: entity.diagnosis,
       partsToReplace: entity.partsToReplace,
       estimatedCost: entity.estimatedCost,
+      advanceAmount: entity.advanceAmount,
       createdAt: entity.createdAt,
       completedAt: entity.completedAt,
       deliveredAt: entity.deliveredAt,

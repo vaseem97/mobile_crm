@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/repair_job_card.dart';
+import '../../../../core/services/service_locator.dart';
+import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
+import '../../../../features/repair/domain/entities/repair_job.dart';
 
 class DashboardRepairsTab extends StatefulWidget {
   const DashboardRepairsTab({Key? key}) : super(key: key);
@@ -19,6 +22,9 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchController = TextEditingController();
+  final _repairRepository = getService<RepairRepositoryImpl>();
+  bool _isLoading = false;
+  String? _errorMessage;
 
   // This variable is used to track and restore the tab state
   static int savedTabIndex = 0;
@@ -27,7 +33,7 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
   void initState() {
     super.initState();
     _tabController =
-        TabController(length: 4, vsync: this, initialIndex: savedTabIndex);
+        TabController(length: 2, vsync: this, initialIndex: savedTabIndex);
     _tabController.addListener(_handleTabSelection);
   }
 
@@ -51,14 +57,8 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
       case RepairStatus.pending:
         savedTabIndex = 0;
         break;
-      case RepairStatus.inProgress:
-        savedTabIndex = 1;
-        break;
-      case RepairStatus.completed:
-        savedTabIndex = 2;
-        break;
       case RepairStatus.delivered:
-        savedTabIndex = 3;
+        savedTabIndex = 1;
         break;
     }
   }
@@ -74,8 +74,6 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
             controller: _tabController,
             children: [
               _buildRepairsList(RepairStatus.pending),
-              _buildRepairsList(RepairStatus.inProgress),
-              _buildRepairsList(RepairStatus.completed),
               _buildRepairsList(RepairStatus.delivered),
             ],
           ),
@@ -124,8 +122,6 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
         indicatorWeight: 3,
         tabs: const [
           Tab(text: 'Pending'),
-          Tab(text: 'In Progress'),
-          Tab(text: 'Completed'),
           Tab(text: 'Delivered'),
         ],
       ),
@@ -133,230 +129,243 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
   }
 
   Widget _buildRepairsList(RepairStatus status) {
-    // Generating mock data for demo purposes
-    // In a real app, this would come from a repository or service
-    final mockJobs = _generateMockRepairJobs(status);
+    return FutureBuilder<List<RepairJob>>(
+      future: _repairRepository.getRepairJobsByStatus(status),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return mockJobs.isEmpty
-        ? _buildEmptyState(status)
-        : ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: mockJobs.length,
-            itemBuilder: (context, index) {
-              final job = mockJobs[index];
-              return RepairJobCard(
-                id: job['id'],
-                customerName: job['customerName'],
-                customerPhone: job['customerPhone'],
-                deviceModel: job['deviceModel'],
-                problem: job['problem'],
-                status: status,
-                createdAt: job['createdAt'],
-                estimatedCost: job['estimatedCost'],
-                onView: () {
-                  context.push('/repair-details/${job['id']}');
-                },
-                onEdit: () {
-                  // Show edit dialog or navigate to edit page
-                },
-                onDelete: () {
-                  // Show delete confirmation
-                },
-                onStatusChange: () {
-                  _showStatusUpdateDialog(context);
-                },
-              );
-            },
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Colors.red,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading repairs',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  snapshot.error.toString(),
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {});
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           );
+        }
+
+        final repairs = snapshot.data ?? [];
+
+        if (repairs.isEmpty) {
+          return _buildEmptyState(status);
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: repairs.length,
+          itemBuilder: (context, index) {
+            final job = repairs[index];
+            return RepairJobCard(
+              id: job.id,
+              customerName: job.customerName,
+              customerPhone: job.customerPhone,
+              deviceModel: '${job.deviceBrand} ${job.deviceModel}',
+              problem: job.problem,
+              status: job.status,
+              createdAt: job.createdAt,
+              estimatedCost: job.estimatedCost,
+              onView: () {
+                context.push('/repair-details/${job.id}');
+              },
+              onEdit: () {
+                // Show edit dialog or navigate to edit page
+              },
+              onDelete: () async {
+                final shouldDelete = await _showDeleteConfirmation(context);
+                if (shouldDelete == true) {
+                  try {
+                    await _repairRepository.deleteRepairJob(job.id);
+                    setState(() {}); // Refresh the list
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Repair job deleted successfully'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Error deleting repair: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+              onStatusChange: () async {
+                final newStatus = await _showStatusUpdateDialog(context);
+                if (newStatus != null && newStatus != job.status) {
+                  try {
+                    await _repairRepository.updateRepairJob(
+                      job.copyWith(status: newStatus),
+                    );
+                    setState(() {}); // Refresh the list
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Status updated successfully'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Error updating status: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showDeleteConfirmation(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Repair Job'),
+        content: const Text(
+          'Are you sure you want to delete this repair job? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState(RepairStatus status) {
-    String message;
     IconData icon;
+    String message;
+    String description;
 
     switch (status) {
       case RepairStatus.pending:
-        message = 'No pending repairs';
-        icon = Icons.inbox;
-        break;
-      case RepairStatus.inProgress:
-        message = 'No repairs in progress';
-        icon = Icons.build_circle;
-        break;
-      case RepairStatus.completed:
-        message = 'No completed repairs';
-        icon = Icons.check_circle;
+        icon = Icons.pending_actions;
+        message = 'No Pending Repairs';
+        description = 'All repairs have been started or completed.';
         break;
       case RepairStatus.delivered:
-        message = 'No delivered repairs';
         icon = Icons.delivery_dining;
+        message = 'No Delivered Repairs';
+        description = 'No devices have been delivered to customers yet.';
         break;
     }
 
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 72,
-            color: AppColors.textLight.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.textLight,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'All your ${status.name} repairs will appear here',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textLight,
-                ),
-          ),
-          const SizedBox(height: 24),
-          if (status == RepairStatus.pending)
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
                 context.push('/add-repair');
               },
               icon: const Icon(Icons.add),
               label: const Text('Add New Repair'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _showStatusUpdateDialog(BuildContext context) {
-    showDialog(
+  Future<RepairStatus?> _showStatusUpdateDialog(BuildContext context) async {
+    return showDialog<RepairStatus>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Update Repair Status'),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _StatusOption(
-              status: RepairStatus.inProgress,
-              title: 'In Progress',
-              description: 'Repair has started',
-            ),
-            _StatusOption(
-              status: RepairStatus.completed,
-              title: 'Completed',
-              description: 'Repair is complete but not delivered',
+              status: RepairStatus.pending,
+              title: 'Pending',
+              description: 'Repair has not started',
             ),
             _StatusOption(
               status: RepairStatus.delivered,
               title: 'Delivered',
-              description: 'Repair is complete and device delivered',
+              description: 'Device returned to customer',
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-        ],
       ),
     );
-  }
-
-  List<Map<String, dynamic>> _generateMockRepairJobs(RepairStatus status) {
-    final now = DateTime.now();
-
-    // Different number of items based on status for demo purposes
-    switch (status) {
-      case RepairStatus.pending:
-        return [
-          {
-            'id': 'REP001',
-            'customerName': 'Rahul Sharma',
-            'customerPhone': '9876543210',
-            'deviceModel': 'iPhone 13',
-            'problem': 'Broken Screen',
-            'estimatedCost': 7500.0,
-            'createdAt': now.subtract(const Duration(days: 1)),
-          },
-          {
-            'id': 'REP002',
-            'customerName': 'Priya Singh',
-            'customerPhone': '8765432109',
-            'deviceModel': 'Samsung S22',
-            'problem': 'Battery Replacement',
-            'estimatedCost': 2500.0,
-            'createdAt': now.subtract(const Duration(days: 2)),
-          },
-          {
-            'id': 'REP003',
-            'customerName': 'Ajay Kumar',
-            'customerPhone': '7654321098',
-            'deviceModel': 'OnePlus 10T',
-            'problem': 'Charging Port Repair',
-            'estimatedCost': 1500.0,
-            'createdAt': now.subtract(const Duration(days: 2)),
-          },
-        ];
-      case RepairStatus.inProgress:
-        return [
-          {
-            'id': 'REP004',
-            'customerName': 'Neha Verma',
-            'customerPhone': '9765432108',
-            'deviceModel': 'Xiaomi 12',
-            'problem': 'Speaker Not Working',
-            'estimatedCost': 1200.0,
-            'createdAt': now.subtract(const Duration(days: 3)),
-          },
-          {
-            'id': 'REP005',
-            'customerName': 'Vikram Patel',
-            'customerPhone': '8654321097',
-            'deviceModel': 'Realme GT',
-            'problem': 'Software Issues',
-            'estimatedCost': 800.0,
-            'createdAt': now.subtract(const Duration(days: 4)),
-          },
-        ];
-      case RepairStatus.completed:
-        return [
-          {
-            'id': 'REP006',
-            'customerName': 'Ananya Desai',
-            'customerPhone': '7543210986',
-            'deviceModel': 'Vivo V23',
-            'problem': 'Camera Repair',
-            'estimatedCost': 2000.0,
-            'createdAt': now.subtract(const Duration(days: 5)),
-          },
-        ];
-      case RepairStatus.delivered:
-        return [
-          {
-            'id': 'REP007',
-            'customerName': 'Rohan Joshi',
-            'customerPhone': '9654321098',
-            'deviceModel': 'Oppo Reno',
-            'problem': 'Water Damage',
-            'estimatedCost': 3500.0,
-            'createdAt': now.subtract(const Duration(days: 10)),
-          },
-          {
-            'id': 'REP008',
-            'customerName': 'Meera Kapoor',
-            'customerPhone': '8543210987',
-            'deviceModel': 'Nokia X30',
-            'problem': 'Screen Replacement',
-            'estimatedCost': 5000.0,
-            'createdAt': now.subtract(const Duration(days: 12)),
-          },
-        ];
-    }
   }
 }
 
@@ -380,14 +389,6 @@ class _StatusOption extends StatelessWidget {
       case RepairStatus.pending:
         color = AppColors.warning;
         icon = Icons.pending_actions;
-        break;
-      case RepairStatus.inProgress:
-        color = AppColors.info;
-        icon = Icons.build;
-        break;
-      case RepairStatus.completed:
-        color = AppColors.success;
-        icon = Icons.check_circle;
         break;
       case RepairStatus.delivered:
         color = AppColors.primary;

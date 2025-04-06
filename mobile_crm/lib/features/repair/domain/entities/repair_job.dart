@@ -15,6 +15,7 @@ class RepairJob extends Equatable {
   final String diagnosis;
   final List<String> partsToReplace;
   final double estimatedCost;
+  final double advanceAmount;
   final DateTime createdAt;
   final DateTime? completedAt;
   final DateTime? deliveredAt;
@@ -36,6 +37,7 @@ class RepairJob extends Equatable {
     this.diagnosis = '',
     this.partsToReplace = const [],
     required this.estimatedCost,
+    this.advanceAmount = 0.0,
     required this.createdAt,
     this.completedAt,
     this.deliveredAt,
@@ -59,6 +61,7 @@ class RepairJob extends Equatable {
         diagnosis,
         partsToReplace,
         estimatedCost,
+        advanceAmount,
         createdAt,
         completedAt,
         deliveredAt,
@@ -81,6 +84,7 @@ class RepairJob extends Equatable {
     String? diagnosis,
     List<String>? partsToReplace,
     double? estimatedCost,
+    double? advanceAmount,
     DateTime? createdAt,
     DateTime? completedAt,
     DateTime? deliveredAt,
@@ -102,6 +106,7 @@ class RepairJob extends Equatable {
       diagnosis: diagnosis ?? this.diagnosis,
       partsToReplace: partsToReplace ?? this.partsToReplace,
       estimatedCost: estimatedCost ?? this.estimatedCost,
+      advanceAmount: advanceAmount ?? this.advanceAmount,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,

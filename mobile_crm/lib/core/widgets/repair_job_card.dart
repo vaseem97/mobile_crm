@@ -4,10 +4,8 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 
 enum RepairStatus {
-  pending,
-  inProgress,
-  completed,
-  delivered,
+  pending, // Device is being repaired
+  delivered, // Repair completed and device delivered to customer
 }
 
 class RepairJobCard extends StatelessWidget {
@@ -227,10 +225,6 @@ class RepairJobCard extends StatelessWidget {
     switch (status) {
       case RepairStatus.pending:
         return 'Pending';
-      case RepairStatus.inProgress:
-        return 'In Progress';
-      case RepairStatus.completed:
-        return 'Completed';
       case RepairStatus.delivered:
         return 'Delivered';
     }
@@ -240,10 +234,6 @@ class RepairJobCard extends StatelessWidget {
     switch (status) {
       case RepairStatus.pending:
         return Icons.pending_actions;
-      case RepairStatus.inProgress:
-        return Icons.build;
-      case RepairStatus.completed:
-        return Icons.check_circle;
       case RepairStatus.delivered:
         return Icons.delivery_dining;
     }
@@ -253,10 +243,6 @@ class RepairJobCard extends StatelessWidget {
     switch (status) {
       case RepairStatus.pending:
         return AppColors.warning;
-      case RepairStatus.inProgress:
-        return AppColors.info;
-      case RepairStatus.completed:
-        return AppColors.success;
       case RepairStatus.delivered:
         return AppColors.primary;
     }

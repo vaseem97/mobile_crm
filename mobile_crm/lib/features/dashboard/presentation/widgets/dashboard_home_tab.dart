@@ -2,26 +2,145 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/services/service_locator.dart';
+import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
+import '../../../../features/repair/domain/entities/repair_job.dart';
+import '../../../../core/widgets/repair_job_card.dart';
 import '../pages/dashboard_page.dart';
 
-class DashboardHomeTab extends StatelessWidget {
+class DashboardHomeTab extends StatefulWidget {
   const DashboardHomeTab({Key? key}) : super(key: key);
 
   @override
+  State<DashboardHomeTab> createState() => _DashboardHomeTabState();
+}
+
+class _DashboardHomeTabState extends State<DashboardHomeTab> {
+  final _repairRepository = getService<RepairRepositoryImpl>();
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  // Dashboard statistics
+  int _pendingCount = 0;
+  int _inProgressCount = 0;
+  int _completedCount = 0;
+  double _todaySales = 0;
+  List<RepairJob> _recentRepairs = [];
+  List<RepairJob> _recentDeliveries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final pending =
+          await _repairRepository.getRepairJobsByStatus(RepairStatus.pending);
+
+      final delivered =
+          await _repairRepository.getRepairJobsByStatus(RepairStatus.delivered);
+
+      // Get today's date
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Sort repairs by createdAt descending (most recent first)
+      final allRepairs = [...pending, ...delivered];
+      allRepairs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Recent deliveries - in the last 7 days
+      final recentDeliveries = allRepairs.where((repair) {
+        return repair.status == RepairStatus.delivered &&
+            repair.deliveredAt != null &&
+            repair.deliveredAt!
+                .isAfter(today.subtract(const Duration(days: 7)));
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _pendingCount = pending.length;
+          _inProgressCount = 0;
+          _completedCount = 0;
+          _todaySales = 0;
+          _recentRepairs = allRepairs.take(5).toList();
+          _recentDeliveries = recentDeliveries;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(context),
-          const SizedBox(height: 24),
-          _buildStatisticsOverview(context),
-          const SizedBox(height: 24),
-          _buildRecentRepairsSection(context),
-          const SizedBox(height: 24),
-          _buildQuickActionsSection(context),
-        ],
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: _isLoading
+            ? const SizedBox(
+                height: 500,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : _errorMessage != null
+                ? SizedBox(
+                    height: 500,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading dashboard data',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _errorMessage!,
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _loadData,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildWelcomeCard(context),
+                      const SizedBox(height: 24),
+                      _buildStatisticsOverview(context),
+                      const SizedBox(height: 24),
+                      _buildRecentRepairsSection(context),
+                      const SizedBox(height: 24),
+                      _buildQuickActionsSection(context),
+                    ],
+                  ),
       ),
     );
   }
@@ -108,7 +227,7 @@ class DashboardHomeTab extends StatelessWidget {
             Expanded(
               child: _buildStatCard(
                 context,
-                '6',
+                _pendingCount.toString(),
                 'Pending Repairs',
                 Icons.pending_actions,
                 AppColors.warning,
@@ -119,7 +238,7 @@ class DashboardHomeTab extends StatelessWidget {
             Expanded(
               child: _buildStatCard(
                 context,
-                '4',
+                _inProgressCount.toString(),
                 'In Progress',
                 Icons.build,
                 AppColors.info,
@@ -134,7 +253,7 @@ class DashboardHomeTab extends StatelessWidget {
             Expanded(
               child: _buildStatCard(
                 context,
-                '3',
+                _completedCount.toString(),
                 'Completed',
                 Icons.check_circle,
                 AppColors.success,
@@ -145,7 +264,7 @@ class DashboardHomeTab extends StatelessWidget {
             Expanded(
               child: _buildStatCard(
                 context,
-                '₹8,500',
+                '₹${_todaySales.toStringAsFixed(0)}',
                 'Today\'s Sales',
                 Icons.payments,
                 AppColors.primary,
@@ -234,30 +353,44 @@ class DashboardHomeTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        _buildRecentRepairItem(
-          context,
-          'Samsung Galaxy S21',
-          'Screen Replacement',
-          'Pending',
-          AppColors.warning,
-          '1',
-        ),
-        _buildRecentRepairItem(
-          context,
-          'iPhone 13 Pro',
-          'Battery Replacement',
-          'In Progress',
-          AppColors.info,
-          '2',
-        ),
-        _buildRecentRepairItem(
-          context,
-          'OnePlus 9 Pro',
-          'Charging Port Repair',
-          'Completed',
-          AppColors.success,
-          '3',
-        ),
+        _recentRepairs.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'No repairs found. Add your first repair job!',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                  ),
+                ),
+              )
+            : Column(
+                children: _recentRepairs.map((repair) {
+                  Color statusColor;
+                  String statusText;
+
+                  switch (repair.status) {
+                    case RepairStatus.pending:
+                      statusColor = AppColors.warning;
+                      statusText = 'Pending';
+                      break;
+                    case RepairStatus.delivered:
+                      statusColor = AppColors.primary;
+                      statusText = 'Delivered';
+                      break;
+                  }
+
+                  return _buildRecentRepairItem(
+                    context,
+                    '${repair.deviceBrand} ${repair.deviceModel}',
+                    repair.problem,
+                    statusText,
+                    statusColor,
+                    repair.id,
+                  );
+                }).toList(),
+              ),
       ],
     );
   }
@@ -452,5 +585,23 @@ class DashboardHomeTab extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _getStatusColor(RepairStatus status) {
+    switch (status) {
+      case RepairStatus.pending:
+        return AppColors.warning;
+      case RepairStatus.delivered:
+        return AppColors.primary;
+    }
+  }
+
+  IconData _getStatusIcon(RepairStatus status) {
+    switch (status) {
+      case RepairStatus.pending:
+        return Icons.pending_actions;
+      case RepairStatus.delivered:
+        return Icons.delivery_dining;
+    }
   }
 }
