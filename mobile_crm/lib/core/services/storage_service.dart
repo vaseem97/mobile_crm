@@ -1,169 +1,80 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:firebase_storage/firebase_storage.dart';
-
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path/path.dart' as p;
 
 class StorageService {
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<Uint8List?> _compressImage(File file) async {
+  // Check if bucket exists and is accessible
+  Future<bool> checkBucket(String bucket) async {
     try {
-      // Compress the image
-      final Uint8List? result = await FlutterImageCompress.compressWithFile(
-        file.absolute.path,
-        minWidth: 1080, // Adjust width as needed
-        minHeight: 1920, // Adjust height as needed
-        quality: 75, // Adjust quality (0-100)
-      );
-      return result;
+      await _supabase.storage.from(bucket).list();
+      return true;
     } catch (e) {
-      print('Error compressing image: $e');
-      return null;
+      print('Bucket $bucket is not accessible or does not exist: $e');
+      return false;
     }
   }
 
-  Future<String?> uploadImage(
-      File imageFile, String repairId, int imageIndex) async {
-    try {
-      // Compress the image first
-      final Uint8List? compressedData = await _compressImage(imageFile);
-      if (compressedData == null) {
-        print('Image compression failed for ${imageFile.path}');
-        return null; // Skip upload if compression failed
-      }
-
-      // Create a unique filename
-      final String fileExtension = p.extension(imageFile.path);
-      final String fileName =
-          'repair_${repairId}_image_$imageIndex$fileExtension';
-      final String filePath = 'repair_images/$repairId/$fileName';
-
-      // Create reference
-      final Reference ref = _storage.ref().child(filePath);
-
-      // Upload the compressed data
-      print('Uploading compressed image $imageIndex for repair $repairId...');
-      final UploadTask uploadTask = ref.putData(
-          compressedData,
-          SettableMetadata(
-              contentType:
-                  'image/${fileExtension.replaceAll('.', '')}') // Set content type
-          );
-
-      // Await completion
-      final TaskSnapshot snapshot = await uploadTask;
-
-      // Get download URL
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-      print('Uploaded image $imageIndex for repair $repairId: $downloadUrl');
-      return downloadUrl;
-    } on FirebaseException catch (e) {
-      print(
-          'Error uploading image to Firebase Storage: ${e.code} - ${e.message}');
-      return null;
-    } catch (e) {
-      print('An unexpected error occurred during image upload: $e');
-      return null;
-    }
-  }
-
-  Future<List<String>> uploadRepairImages(
-      List<File> images, String repairId) async {
-    final List<String> uploadedUrls = [];
-    if (images.isEmpty) {
-      return uploadedUrls;
-    }
-
-    print('Starting image upload for repair $repairId...');
-    // Use Future.wait for potentially faster parallel uploads
-    final List<Future<String?>> uploadFutures = [];
-    for (int i = 0; i < images.length; i++) {
-      uploadFutures.add(uploadImage(images[i], repairId, i + 1));
-    }
-
-    final List<String?> results = await Future.wait(uploadFutures);
-
-    for (int i = 0; i < results.length; i++) {
-      final url = results[i];
-      if (url != null) {
-        uploadedUrls.add(url);
-      } else {
-        print('Failed to upload image ${i + 1} for repair $repairId');
-        // Optionally, rethrow an error or notify the user if an upload fails
-      }
-    }
-
-    print(
-        'Finished uploading ${uploadedUrls.length}/${images.length} images for repair $repairId.');
-    return uploadedUrls;
-  }
-}
-
-class FirebaseStorageService {
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-
-  // Get a reference to storage
-  Reference ref(String path) {
-    return _storage.ref().child(path);
-  }
-
-  // Upload a file
+  // Upload a file to specified bucket and path
   Future<String> uploadFile({
+    required String bucket,
     required String path,
     required File file,
     Map<String, String>? metadata,
   }) async {
     try {
-      final storageRef = _storage.ref().child(path);
-
-      UploadTask uploadTask;
-
-      if (metadata != null) {
-        uploadTask = storageRef.putFile(
-          file,
-          SettableMetadata(customMetadata: metadata),
-        );
-      } else {
-        uploadTask = storageRef.putFile(file);
+      // Check if bucket exists
+      final bucketExists = await checkBucket(bucket);
+      if (!bucketExists) {
+        throw Exception('Bucket $bucket does not exist or is not accessible');
       }
 
-      // Wait for the upload to complete
-      final snapshot = await uploadTask;
+      await _supabase.storage.from(bucket).upload(
+            path,
+            file,
+            fileOptions: const FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+            ),
+          );
 
-      // Get the download URL
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
+      // Get public URL
+      final String downloadUrl =
+          _supabase.storage.from(bucket).getPublicUrl(path);
       return downloadUrl;
     } catch (e) {
       throw Exception('Failed to upload file: $e');
     }
   }
 
-  // Upload data
+  // Upload binary data
   Future<String> uploadData({
+    required String bucket,
     required String path,
-    required List<int> data,
+    required Uint8List data,
     String? contentType,
   }) async {
     try {
-      final storageRef = _storage.ref().child(path);
+      // Check if bucket exists
+      final bucketExists = await checkBucket(bucket);
+      if (!bucketExists) {
+        throw Exception('Bucket $bucket does not exist or is not accessible');
+      }
 
-      final uploadTask = storageRef.putData(
-        Uint8List.fromList(data),
-        SettableMetadata(contentType: contentType),
-      );
+      await _supabase.storage.from(bucket).uploadBinary(
+            path,
+            data,
+            fileOptions: FileOptions(
+              contentType: contentType,
+              upsert: true,
+            ),
+          );
 
-      // Wait for the upload to complete
-      final snapshot = await uploadTask;
-
-      // Get the download URL
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
+      // Get public URL
+      final String downloadUrl =
+          _supabase.storage.from(bucket).getPublicUrl(path);
       return downloadUrl;
     } catch (e) {
       throw Exception('Failed to upload data: $e');
@@ -171,73 +82,85 @@ class FirebaseStorageService {
   }
 
   // Download a file
-  Future<Uint8List> downloadFile(String path) async {
+  Future<Uint8List> downloadFile({
+    required String bucket,
+    required String path,
+  }) async {
     try {
-      final storageRef = _storage.ref().child(path);
-      final data = await storageRef.getData();
-
-      if (data == null) {
-        throw Exception('Failed to download file: No data found');
-      }
-
+      final data = await _supabase.storage.from(bucket).download(path);
       return data;
     } catch (e) {
       throw Exception('Failed to download file: $e');
     }
   }
 
-  // Get download URL
-  Future<String> getDownloadURL(String path) async {
-    try {
-      final storageRef = _storage.ref().child(path);
-      return await storageRef.getDownloadURL();
-    } catch (e) {
-      throw Exception('Failed to get download URL: $e');
-    }
+  // Get public URL
+  String getPublicUrl({
+    required String bucket,
+    required String path,
+  }) {
+    return _supabase.storage.from(bucket).getPublicUrl(path);
   }
 
   // Delete a file
-  Future<void> deleteFile(String path) async {
+  Future<void> deleteFile({
+    required String bucket,
+    required String path,
+  }) async {
     try {
-      final storageRef = _storage.ref().child(path);
-      await storageRef.delete();
+      await _supabase.storage.from(bucket).remove([path]);
     } catch (e) {
       throw Exception('Failed to delete file: $e');
     }
   }
 
   // List files in a directory
-  Future<ListResult> listFiles(String path) async {
+  Future<List<FileObject>> listFiles({
+    required String bucket,
+    required String path,
+  }) async {
     try {
-      final storageRef = _storage.ref().child(path);
-      return await storageRef.listAll();
+      final list = await _supabase.storage.from(bucket).list(path: path);
+      return list;
     } catch (e) {
       throw Exception('Failed to list files: $e');
     }
   }
 
-  // Get metadata
-  Future<FullMetadata> getMetadata(String path) async {
+  // Create a signed URL (temporary access URL)
+  Future<String> createSignedUrl({
+    required String bucket,
+    required String path,
+    required int expiresIn, // seconds
+  }) async {
     try {
-      final storageRef = _storage.ref().child(path);
-      return await storageRef.getMetadata();
+      final signedURL =
+          await _supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+      return signedURL;
     } catch (e) {
-      throw Exception('Failed to get metadata: $e');
+      throw Exception('Failed to create signed URL: $e');
     }
   }
 
-  // Update metadata
-  Future<FullMetadata> updateMetadata({
-    required String path,
-    required Map<String, String> metadata,
-  }) async {
-    try {
-      final storageRef = _storage.ref().child(path);
-      return await storageRef.updateMetadata(
-        SettableMetadata(customMetadata: metadata),
-      );
-    } catch (e) {
-      throw Exception('Failed to update metadata: $e');
+  // Helper method to determine content type from file extension
+  String _getContentType(String filePath) {
+    final ext = p.extension(filePath).toLowerCase();
+    switch (ext) {
+      case '.jpeg':
+      case '.jpg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.pdf':
+        return 'application/pdf';
+      case '.doc':
+        return 'application/msword';
+      case '.docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      default:
+        return 'application/octet-stream';
     }
   }
 }

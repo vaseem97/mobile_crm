@@ -21,23 +21,40 @@ class RepairRepositoryImpl {
         throw Exception('User not authenticated');
       }
 
-      // Generate a friendly ID in format REP-YYMMxxx
+      // Get the current counter value and increment it
+      final counterRef = _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .doc('counters')
+          .collection('shops')
+          .doc(user.uid);
+
+      // Use a transaction to safely increment the counter
+      int counterValue = 0;
+      await _firestoreService.runTransaction((transaction) async {
+        final counterSnapshot = await transaction.get(counterRef);
+        int currentCount = 0;
+
+        if (counterSnapshot.exists) {
+          final data = counterSnapshot.data() as Map<String, dynamic>?;
+          currentCount = (data?['count'] as int?) ?? 0;
+        }
+
+        // Increment the counter
+        counterValue = currentCount + 1;
+        transaction.set(counterRef, {
+          'count': counterValue,
+          'lastUpdated': DateTime.now().toIso8601String(),
+          'shopId': user.uid,
+        });
+      });
+
+      // Generate a friendly ID in format REP-YYMMxxxxx
       final now = DateTime.now();
       final yearMonth =
           '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}';
 
-      // Get count of repairs for this month to create sequential number
-      final monthStart = DateTime(now.year, now.month, 1);
-      final countSnapshot = await _firestoreService
-          .collection(AppConstants.repairJobsCollection)
-          .where('shopId', isEqualTo: user.uid)
-          .where('createdAt',
-              isGreaterThanOrEqualTo: monthStart.toIso8601String())
-          .get();
-
-      // Format sequential number with leading zeros (e.g., 001, 012, 123)
-      final count = countSnapshot.docs.length + 1;
-      final sequentialNum = count.toString().padLeft(3, '0');
+      // Format sequential number with leading zeros (e.g., 00001, 00012, 00123)
+      final sequentialNum = counterValue.toString().padLeft(5, '0');
 
       // Create friendly ID
       final friendlyId = 'REP-$yearMonth$sequentialNum';
@@ -48,8 +65,11 @@ class RepairRepositoryImpl {
       );
       final data = model.toJson();
 
-      // Add shop ID
+      // Add shop ID and additional metadata
       data['shopId'] = user.uid;
+      data['createdAt'] = now.toIso8601String();
+      data['createdBy'] = user.uid;
+      data['isActive'] = true; // For soft delete support
 
       // Create document with the friendly ID as document ID
       await _firestoreService
@@ -63,7 +83,7 @@ class RepairRepositoryImpl {
     }
   }
 
-  // Get all repair jobs for current shop
+  // Get all repair jobs for current shop (excluding soft-deleted ones)
   Future<List<RepairJob>> getRepairJobs() async {
     try {
       final userId = _authService.currentUser?.uid;
@@ -74,7 +94,8 @@ class RepairRepositoryImpl {
       final snapshot = await _firestoreService.queryCollection(
         collectionPath: AppConstants.repairJobsCollection,
         filters: [
-          ['shopId', userId]
+          ['shopId', userId],
+          ['isActive', true],
         ],
         orderBy: 'createdAt',
         descending: true,
@@ -140,12 +161,22 @@ class RepairRepositoryImpl {
     }
   }
 
-  // Delete repair job
+  // Delete repair job (soft delete)
   Future<void> deleteRepairJob(String id) async {
     try {
-      await _firestoreService.deleteDocument(
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _firestoreService.updateDocument(
         collectionPath: AppConstants.repairJobsCollection,
         documentId: id,
+        data: {
+          'isActive': false,
+          'deletedAt': DateTime.now().toIso8601String(),
+          'deletedBy': user.uid,
+        },
       );
     } catch (e) {
       throw Exception('Failed to delete repair job: $e');
@@ -164,6 +195,7 @@ class RepairRepositoryImpl {
           .collection(AppConstants.repairJobsCollection)
           .where('shopId', isEqualTo: user.uid)
           .where('status', isEqualTo: status.name)
+          .where('isActive', isEqualTo: true)
           .orderBy('createdAt', descending: true)
           .get();
 
@@ -189,6 +221,7 @@ class RepairRepositoryImpl {
           .collection(AppConstants.repairJobsCollection)
           .where('shopId', isEqualTo: user.uid)
           .where('customerPhone', isEqualTo: phoneNumber)
+          .where('isActive', isEqualTo: true)
           .orderBy('createdAt', descending: true)
           .get();
 

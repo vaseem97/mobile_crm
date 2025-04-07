@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -10,7 +9,6 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../../../../core/widgets/repair_job_card.dart';
 import '../../../../core/services/service_locator.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../data/repositories/repair_repository_impl.dart';
 import '../../domain/entities/repair_job.dart';
 import 'dart:math';
@@ -25,7 +23,6 @@ class AddRepairPage extends StatefulWidget {
 class _AddRepairPageState extends State<AddRepairPage> {
   final _formKey = GlobalKey<FormState>();
   final _repairRepository = getService<RepairRepositoryImpl>();
-  final _storageService = StorageService();
   final _scrollController = ScrollController();
   bool _isPatternActive = false;
 
@@ -44,10 +41,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
   List<List<int>> _patternDots = [];
   List<String> _patternDescription = [];
   int? _startDot;
-
-  // Device Images
-  final List<File> _deviceImages = [];
-  final _imagePicker = ImagePicker();
 
   // Repair Info
   final _estimatedCostController = TextEditingController();
@@ -238,25 +231,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
     }
   }
 
-  Future<void> _takePicture() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
-
-    if (image != null) {
-      setState(() {
-        _deviceImages.add(File(image.path));
-      });
-    }
-  }
-
-  void _removeImage(int index) {
-    setState(() {
-      _deviceImages.removeAt(index);
-    });
-  }
-
   void _addPatternDot(int row, int col) {
     final List<int> dot = [row, col];
     final int dotIndex = row * 3 + col;
@@ -303,7 +277,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
     }
 
     if (!_formKey.currentState!.validate()) {
-      // Show error snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all required fields'),
@@ -328,19 +301,18 @@ class _AddRepairPageState extends State<AddRepairPage> {
     });
 
     String? tempRepairId;
-    List<String> uploadedImageUrls = [];
 
     try {
       // Show initial loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Creating repair job...'),
-          duration: Duration(seconds: 60), // Show indefinitely until hidden
+          duration: Duration(seconds: 60),
           backgroundColor: Colors.grey,
         ),
       );
 
-      // 1. Prepare RepairJob data (without images first)
+      // 1. Prepare RepairJob data
       double estimatedCost = 0.0;
       if (_estimatedCostController.text.isNotEmpty) {
         estimatedCost = double.parse(_estimatedCostController.text);
@@ -351,7 +323,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
       }
 
       final newRepairData = RepairJob(
-        id: 'TEMP_ID', // Placeholder ID initially
+        id: 'TEMP_ID',
         customerName: _customerNameController.text,
         customerPhone: _customerPhoneController.text,
         deviceModel: _deviceModelController.text,
@@ -369,52 +341,15 @@ class _AddRepairPageState extends State<AddRepairPage> {
         createdAt: DateTime.now(),
         status: RepairStatus.pending,
         notes: _notesController.text,
-        imageUrls: [], // Start with empty URLs
+        imageUrls: [], // Empty list for now
         warrantyPeriod: _selectedWarranty,
       );
 
-      // 2. Create initial document in Firestore to get the ID
+      // 2. Create document in Firestore
       tempRepairId = await _repairRepository.createRepairJob(newRepairData);
-      print('Initial repair document created with ID: $tempRepairId');
+      print('Repair document created with ID: $tempRepairId');
 
-      // 3. Upload images if any
-      if (_deviceImages.isNotEmpty && tempRepairId != null) {
-        // Show image upload indicator
-        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide previous
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Uploading ${_deviceImages.length} image(s)...'),
-            duration: const Duration(seconds: 60),
-            backgroundColor: Colors.blueGrey,
-          ),
-        );
-
-        uploadedImageUrls = await _storageService.uploadRepairImages(
-          _deviceImages,
-          tempRepairId,
-        );
-        print('Uploaded image URLs: $uploadedImageUrls');
-
-        // 4. Update the document with image URLs
-        if (uploadedImageUrls.isNotEmpty) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide previous
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Finalizing repair details...'),
-              duration: Duration(seconds: 60),
-              backgroundColor: Colors.blueGrey,
-            ),
-          );
-          await _repairRepository.updateRepairJobImageUrls(
-            tempRepairId,
-            uploadedImageUrls,
-          );
-          print('Repair document $tempRepairId updated with image URLs.');
-        }
-      }
-
-      ScaffoldMessenger.of(context)
-          .hideCurrentSnackBar(); // Hide any loading indicators
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (mounted) {
         // Show final success message
@@ -430,11 +365,11 @@ class _AddRepairPageState extends State<AddRepairPage> {
         context.pop(tempRepairId);
       }
     } catch (e) {
-      print('Error during repair job creation/upload: ${e.toString()}');
-      ScaffoldMessenger.of(context)
-          .hideCurrentSnackBar(); // Hide loading indicator
-      // Show detailed error message
+      print('Error during repair job creation: ${e.toString()}');
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
       if (mounted) {
+        // Show detailed error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error creating repair job: ${e.toString()}'),
@@ -1267,95 +1202,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Icon(Icons.camera_alt, color: AppColors.primary, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              'Device Photos',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Take pictures of device damage or identifying marks',
-          style: TextStyle(
-            color: Colors.grey.shade600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: _takePicture,
-          icon: const Icon(Icons.camera_alt),
-          label: const Text('Take Photo'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        if (_deviceImages.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            '${_deviceImages.length} photo${_deviceImages.length > 1 ? 's' : ''} captured',
-            style: TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 100,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _deviceImages.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: 100,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                    image: DecorationImage(
-                      image: FileImage(_deviceImages[index]),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: GestureDetector(
-                          onTap: () => _removeImage(index),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ],
     );
   }

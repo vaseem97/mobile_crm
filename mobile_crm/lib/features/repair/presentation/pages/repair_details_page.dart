@@ -8,6 +8,7 @@ import '../../../../core/services/service_locator.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/services/storage_service.dart';
 
 class RepairDetailsPage extends StatefulWidget {
   final String repairId;
@@ -194,12 +195,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           const SizedBox(height: 16),
           _buildCustomerInfoCard(),
           const SizedBox(height: 16),
-          if (_repairJob!.imageUrls != null &&
-              _repairJob!.imageUrls!.isNotEmpty)
-            _buildDeviceImagesSection(),
-          if (_repairJob!.imageUrls != null &&
-              _repairJob!.imageUrls!.isNotEmpty)
-            const SizedBox(height: 16),
           if (_repairJob!.status != RepairStatus.delivered)
             CustomButton(
               text: 'Mark as Delivered',
@@ -1030,160 +1025,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             constraints: const BoxConstraints(),
           ),
       ],
-    );
-  }
-
-  Widget _buildDeviceImagesSection() {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.photo_library, color: AppColors.primary, size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Device Images',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 120,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _repairJob!.imageUrls!.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: GestureDetector(
-                      onTap: () {
-                        _showFullImage(_repairJob!.imageUrls![index]);
-                      },
-                      child: Container(
-                        width: 120,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            _repairJob!.imageUrls![index],
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes !=
-                                          null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey.shade200,
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.error_outline,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFullImage(String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Device Image',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.7,
-              ),
-              child: InteractiveViewer(
-                panEnabled: true,
-                boundaryMargin: const EdgeInsets.all(16),
-                minScale: 0.5,
-                maxScale: 3.0,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey.shade200,
-                      child: const Center(
-                        child: Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 48,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

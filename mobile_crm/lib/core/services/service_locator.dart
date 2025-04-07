@@ -6,13 +6,16 @@ import '../../features/repair/data/repositories/repair_repository_impl.dart';
 
 final GetIt locator = GetIt.instance;
 
-void setupServiceLocator() {
+Future<void> setupServiceLocator() async {
   // Register Firebase services
   locator
       .registerLazySingleton<FirebaseAuthService>(() => FirebaseAuthService());
   locator.registerLazySingleton<FirestoreService>(() => FirestoreService());
-  locator.registerLazySingleton<FirebaseStorageService>(
-      () => FirebaseStorageService());
+
+  // Register Supabase storage service (no need to initialize anymore)
+  locator.registerLazySingleton<StorageService>(() => StorageService());
+
+  // Register the general Supabase storage service (optional for advanced usage)
 
   // Repositories
   locator.registerLazySingleton<RepairRepositoryImpl>(
