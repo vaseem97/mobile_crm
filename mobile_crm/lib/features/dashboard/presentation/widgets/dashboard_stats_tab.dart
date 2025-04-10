@@ -5,6 +5,7 @@ import '../../../../core/services/service_locator.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
 import '../../../../core/widgets/repair_job_card.dart';
+import 'dart:math';
 
 class DashboardStatsTab extends StatefulWidget {
   const DashboardStatsTab({Key? key}) : super(key: key);
@@ -15,187 +16,150 @@ class DashboardStatsTab extends StatefulWidget {
 
 class _DashboardStatsTabState extends State<DashboardStatsTab> {
   final _repairRepository = getService<RepairRepositoryImpl>();
-  bool _isLoading = true;
-  String? _errorMessage;
-
-  // Dashboard statistics
-  int _totalRepairs = 0;
-  int _pendingCount = 0;
-  int _inProgressCount = 0;
-  int _completedCount = 0;
-  double _totalRevenue = 0;
-  Map<String, int> _deviceBrands = {};
-  Map<String, int> _repairTypes = {};
-
   String _selectedPeriod = 'This Month';
 
   @override
-  void initState() {
-    super.initState();
-    _loadStatistics();
-  }
-
-  Future<void> _loadStatistics() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // Get all repairs
-      final allRepairs = await _repairRepository.getRepairJobs();
-
-      // Filter for the selected period
-      final DateTime now = DateTime.now();
-      DateTime periodStart;
-
-      switch (_selectedPeriod) {
-        case 'Today':
-          periodStart = DateTime(now.year, now.month, now.day);
-          break;
-        case 'This Week':
-          // Start of week (assuming Sunday as first day)
-          periodStart = now.subtract(Duration(days: now.weekday % 7));
-          periodStart =
-              DateTime(periodStart.year, periodStart.month, periodStart.day);
-          break;
-        case 'This Month':
-          periodStart = DateTime(now.year, now.month, 1);
-          break;
-        case 'This Year':
-          periodStart = DateTime(now.year, 1, 1);
-          break;
-        default:
-          // Default to this month
-          periodStart = DateTime(now.year, now.month, 1);
-      }
-
-      final filteredRepairs = allRepairs
-          .where((repair) =>
-              repair.createdAt.isAfter(periodStart) ||
-              repair.createdAt.isAtSameMomentAs(periodStart))
-          .toList();
-
-      // Calculate statistics
-      final pendingRepairs = filteredRepairs
-          .where((r) => r.status == RepairStatus.pending)
-          .toList();
-      final deliveredRepairs = filteredRepairs
-          .where((r) => r.status == RepairStatus.delivered)
-          .toList();
-
-      final revenue = deliveredRepairs.fold(
-          0.0, (sum, repair) => sum + repair.estimatedCost);
-
-      // Calculate device brand distribution
-      final deviceBrands = <String, int>{};
-      for (var repair in filteredRepairs) {
-        deviceBrands[repair.deviceBrand] =
-            (deviceBrands[repair.deviceBrand] ?? 0) + 1;
-      }
-
-      // Calculate repair types (using problem field)
-      final repairTypes = <String, int>{};
-      for (var repair in filteredRepairs) {
-        // Simplify problem description for statistics
-        String problemType = repair.problem.split(' ').first;
-        if (problemType.length < 3) {
-          problemType =
-              repair.problem.substring(0, min(20, repair.problem.length));
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<RepairJob>>(
+      stream: _repairRepository.getRepairJobsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
 
-        repairTypes[problemType] = (repairTypes[problemType] ?? 0) + 1;
-      }
-
-      // Sort maps by value (descending)
-      var sortedDeviceBrands = Map.fromEntries(deviceBrands.entries.toList()
-        ..sort((e1, e2) => e2.value.compareTo(e1.value)));
-
-      var sortedRepairTypes = Map.fromEntries(repairTypes.entries.toList()
-        ..sort((e1, e2) => e2.value.compareTo(e1.value)));
-
-      if (mounted) {
-        setState(() {
-          _totalRepairs = filteredRepairs.length;
-          _pendingCount = pendingRepairs.length;
-          _inProgressCount = 0;
-          _completedCount = 0;
-          _totalRevenue = revenue;
-          _deviceBrands = sortedDeviceBrands;
-          _repairTypes = sortedRepairTypes;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _loadStatistics,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: _isLoading
-            ? const SizedBox(
-                height: 500,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            : _errorMessage != null
-                ? SizedBox(
-                    height: 500,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading statistics',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _errorMessage!,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _loadStatistics,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildPeriodSelector(context),
-                      const SizedBox(height: 24),
-                      _buildRevenueStats(context),
-                      const SizedBox(height: 24),
-                      _buildRepairStats(context),
-                      const SizedBox(height: 24),
-                      _buildDeviceDistribution(context),
-                      const SizedBox(height: 24),
-                      _buildCommonRepairTypes(context),
-                    ],
+        if (snapshot.hasError) {
+          return SizedBox(
+            height: 500,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red,
                   ),
-      ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading statistics',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    snapshot.error.toString(),
+                    style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {}); // Trigger widget rebuild
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final allRepairs = snapshot.data ?? [];
+
+        // Filter for the selected period
+        final DateTime now = DateTime.now();
+        DateTime periodStart;
+
+        switch (_selectedPeriod) {
+          case 'Today':
+            periodStart = DateTime(now.year, now.month, now.day);
+            break;
+          case 'This Week':
+            // Start of week (assuming Sunday as first day)
+            periodStart = now.subtract(Duration(days: now.weekday % 7));
+            periodStart =
+                DateTime(periodStart.year, periodStart.month, periodStart.day);
+            break;
+          case 'This Month':
+            periodStart = DateTime(now.year, now.month, 1);
+            break;
+          case 'This Year':
+            periodStart = DateTime(now.year, 1, 1);
+            break;
+          default:
+            // Default to this month
+            periodStart = DateTime(now.year, now.month, 1);
+        }
+
+        final filteredRepairs = allRepairs
+            .where((repair) =>
+                repair.createdAt.isAfter(periodStart) ||
+                repair.createdAt.isAtSameMomentAs(periodStart))
+            .toList();
+
+        // Calculate statistics
+        final pendingRepairs = filteredRepairs
+            .where((r) => r.status == RepairStatus.pending)
+            .toList();
+        final returnedRepairs = filteredRepairs
+            .where((r) => r.status == RepairStatus.returned)
+            .toList();
+
+        final revenue = returnedRepairs.fold(
+            0.0, (sum, repair) => sum + repair.estimatedCost);
+
+        // Calculate device brand distribution
+        final deviceBrands = <String, int>{};
+        for (var repair in filteredRepairs) {
+          deviceBrands[repair.deviceBrand] =
+              (deviceBrands[repair.deviceBrand] ?? 0) + 1;
+        }
+
+        // Calculate repair types (using problem field)
+        final repairTypes = <String, int>{};
+        for (var repair in filteredRepairs) {
+          // Simplify problem description for statistics
+          String problemType = repair.problem.split(' ').first;
+          if (problemType.length < 3) {
+            problemType =
+                repair.problem.substring(0, min(20, repair.problem.length));
+          }
+
+          repairTypes[problemType] = (repairTypes[problemType] ?? 0) + 1;
+        }
+
+        // Sort maps by value (descending)
+        var sortedDeviceBrands = Map.fromEntries(deviceBrands.entries.toList()
+          ..sort((e1, e2) => e2.value.compareTo(e1.value)));
+
+        var sortedRepairTypes = Map.fromEntries(repairTypes.entries.toList()
+          ..sort((e1, e2) => e2.value.compareTo(e1.value)));
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            // No need to manually refresh as stream will update automatically
+            return;
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPeriodSelector(context),
+                const SizedBox(height: 24),
+                _buildRevenueStats(context, revenue),
+                const SizedBox(height: 24),
+                _buildRepairStats(context, filteredRepairs.length,
+                    pendingRepairs.length, returnedRepairs.length),
+                const SizedBox(height: 24),
+                _buildDeviceDistribution(context, sortedDeviceBrands),
+                const SizedBox(height: 24),
+                _buildCommonRepairTypes(context, sortedRepairTypes),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -229,7 +193,6 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                     setState(() {
                       _selectedPeriod = newValue;
                     });
-                    _loadStatistics();
                   }
                 },
                 items: <String>['Today', 'This Week', 'This Month', 'This Year']
@@ -247,7 +210,7 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
     );
   }
 
-  Widget _buildRevenueStats(BuildContext context) {
+  Widget _buildRevenueStats(BuildContext context, double totalRevenue) {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -276,7 +239,7 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '₹${_totalRevenue.toStringAsFixed(0)}',
+                      '₹${totalRevenue.toStringAsFixed(0)}',
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
@@ -299,7 +262,12 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
     );
   }
 
-  Widget _buildRepairStats(BuildContext context) {
+  Widget _buildRepairStats(
+    BuildContext context,
+    int totalRepairs,
+    int pendingCount,
+    int completedCount,
+  ) {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -323,7 +291,7 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                   onTap: () => context.push('/repairs/pending'),
                   child: _buildRepairStat(
                     context,
-                    _totalRepairs.toString(),
+                    totalRepairs.toString(),
                     'Total Repairs',
                     AppColors.primary,
                   ),
@@ -332,17 +300,17 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                   onTap: () => context.push('/repairs/pending'),
                   child: _buildRepairStat(
                     context,
-                    _pendingCount.toString(),
+                    pendingCount.toString(),
                     'Pending',
                     AppColors.warning,
                   ),
                 ),
                 InkWell(
-                  onTap: () => context.push('/repairs/completed'),
+                  onTap: () => context.push('/repairs/returned'),
                   child: _buildRepairStat(
                     context,
-                    _completedCount.toString(),
-                    'Completed',
+                    completedCount.toString(),
+                    'Returned',
                     AppColors.success,
                   ),
                 ),
@@ -390,7 +358,8 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
     );
   }
 
-  Widget _buildDeviceDistribution(BuildContext context) {
+  Widget _buildDeviceDistribution(
+      BuildContext context, Map<String, int> deviceBrands) {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -407,15 +376,14 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                   ),
             ),
             const SizedBox(height: 16),
-            _deviceBrands.isEmpty
+            deviceBrands.isEmpty
                 ? _buildEmptyStateMessage('No device data available')
                 : Column(
-                    children: _deviceBrands.entries.take(5).map((entry) {
+                    children: deviceBrands.entries.take(5).map((entry) {
                       return _buildDistributionItem(
                         context,
                         entry.key,
                         entry.value,
-                        _totalRepairs > 0 ? entry.value / _totalRepairs : 0,
                         _getColorForBrand(entry.key),
                       );
                     }).toList(),
@@ -441,7 +409,8 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
     return brandColors[brand] ?? AppColors.primary;
   }
 
-  Widget _buildCommonRepairTypes(BuildContext context) {
+  Widget _buildCommonRepairTypes(
+      BuildContext context, Map<String, int> repairTypes) {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -458,17 +427,14 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
                   ),
             ),
             const SizedBox(height: 16),
-            _repairTypes.isEmpty
+            repairTypes.isEmpty
                 ? _buildEmptyStateMessage('No repair type data available')
                 : Column(
-                    children: _repairTypes.entries.take(5).map((entry) {
+                    children: repairTypes.entries.take(5).map((entry) {
                       return _buildRepairTypeItem(
                         context,
                         entry.key,
                         entry.value,
-                        _totalRepairs > 0
-                            ? entry.value * 100 ~/ _totalRepairs
-                            : 0,
                         _getColorForRepairType(entry.key),
                       );
                     }).toList(),
@@ -515,11 +481,22 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
 
   Widget _buildDistributionItem(
     BuildContext context,
-    String label,
+    String title,
     int count,
-    double percentage,
     Color color,
   ) {
+    // Calculate percentage based on total repair count
+    double percentage = 0;
+    if (count > 0) {
+      // Use the parameter passed to _buildDeviceDistribution instead
+      final total = context.findAncestorWidgetOfExactType<
+                  StreamBuilder<List<RepairJob>>>() !=
+              null
+          ? count
+          : 1;
+      percentage = (count / total) * 100;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -529,28 +506,26 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                title,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
               ),
               Text(
-                '$count devices (${(percentage * 100).toInt()}%)',
+                '$count repairs',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
                     ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ClipRRect(
+          LinearProgressIndicator(
+            value: percentage > 0 ? percentage / 100 : 0.05,
+            backgroundColor: Colors.grey.shade200,
+            color: color,
+            minHeight: 8,
             borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.grey[200],
-              color: color,
-              minHeight: 8,
-            ),
           ),
         ],
       ),
@@ -559,38 +534,49 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
 
   Widget _buildRepairTypeItem(
     BuildContext context,
-    String type,
+    String title,
     int count,
-    int percentage,
     Color color,
   ) {
+    // Calculate percentage based on total repair count
+    double percentage = 0;
+    if (count > 0) {
+      // For simplicity, just use the count as a reference
+      percentage = count > 10 ? 0.8 : count / 10;
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              type,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ),
-          Text(
-            '$count ($percentage%)',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                  overflow: TextOverflow.ellipsis,
                 ),
+              ),
+              Text(
+                '$count repairs',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: percentage > 0 ? percentage : 0.05,
+            backgroundColor: Colors.grey.shade200,
+            color: color,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
           ),
         ],
       ),

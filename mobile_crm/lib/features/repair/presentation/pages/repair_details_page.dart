@@ -72,7 +72,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     try {
       final updatedRepair = _repairJob!.copyWith(
         status: newStatus,
-        deliveredAt: newStatus == RepairStatus.delivered
+        deliveredAt: newStatus == RepairStatus.returned
             ? DateTime.now()
             : _repairJob!.deliveredAt,
       );
@@ -106,8 +106,8 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     switch (status) {
       case RepairStatus.pending:
         return 'Pending Repair';
-      case RepairStatus.delivered:
-        return 'Device Delivered';
+      case RepairStatus.returned:
+        return 'Device Returned';
     }
   }
 
@@ -195,9 +195,9 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           const SizedBox(height: 16),
           _buildCustomerInfoCard(),
           const SizedBox(height: 16),
-          if (_repairJob!.status != RepairStatus.delivered)
+          if (_repairJob!.status != RepairStatus.returned)
             CustomButton(
-              text: 'Mark as Delivered',
+              text: 'Mark as Returned',
               onPressed: () {
                 _showDeliveryConfirmationDialog();
               },
@@ -226,7 +226,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
         statusColor = AppColors.warning;
         statusIcon = Icons.pending_actions;
         break;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         statusColor = AppColors.primary;
         statusIcon = Icons.delivery_dining;
         break;
@@ -312,10 +312,10 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      if (_repairJob!.status == RepairStatus.delivered &&
+                      if (_repairJob!.status == RepairStatus.returned &&
                           _repairJob!.deliveredAt != null)
                         Text(
-                          'Delivered: ${DateFormat('dd MMM yyyy, h:mm a').format(_repairJob!.deliveredAt!)}',
+                          'Returned: ${DateFormat('dd MMM yyyy, h:mm a').format(_repairJob!.deliveredAt!)}',
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey.shade600,
@@ -1031,31 +1031,26 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
   void _showDeliveryConfirmationDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Device Delivery'),
-          content: const Text(
-              'Are you sure you want to mark this repair as completed and delivered to the customer?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateStatus(RepairStatus.delivered);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Device Return'),
+        content: const Text(
+            'Are you sure you want to mark this repair as returned to the customer?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateStatus(RepairStatus.returned);
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1063,8 +1058,8 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     switch (status) {
       case RepairStatus.pending:
         return 'Pending';
-      case RepairStatus.delivered:
-        return 'Delivered';
+      case RepairStatus.returned:
+        return 'Returned';
     }
   }
 

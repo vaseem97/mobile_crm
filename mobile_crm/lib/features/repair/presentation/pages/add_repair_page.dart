@@ -1443,8 +1443,8 @@ class _AddRepairPageState extends State<AddRepairPage> {
     switch (status) {
       case RepairStatus.pending:
         return 'Pending';
-      case RepairStatus.delivered:
-        return 'Delivered';
+      case RepairStatus.returned:
+        return 'Returned';
     }
   }
 
@@ -1452,7 +1452,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
     switch (status) {
       case RepairStatus.pending:
         return AppColors.warning;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return AppColors.primary;
     }
   }

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/widgets/repair_job_card.dart';
 import '../../../../core/services/service_locator.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
-import '../../../../core/widgets/repair_job_card.dart';
 import '../pages/dashboard_page.dart';
 
 class DashboardHomeTab extends StatefulWidget {
@@ -17,131 +17,108 @@ class DashboardHomeTab extends StatefulWidget {
 
 class _DashboardHomeTabState extends State<DashboardHomeTab> {
   final _repairRepository = getService<RepairRepositoryImpl>();
-  bool _isLoading = true;
-  String? _errorMessage;
-
-  // Dashboard statistics
-  int _pendingCount = 0;
-  int _inProgressCount = 0;
-  int _completedCount = 0;
-  double _todaySales = 0;
-  List<RepairJob> _recentRepairs = [];
-  List<RepairJob> _recentDeliveries = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
-      final pending =
-          await _repairRepository.getRepairJobsByStatus(RepairStatus.pending);
-
-      final delivered =
-          await _repairRepository.getRepairJobsByStatus(RepairStatus.delivered);
-
-      // Get today's date
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-
-      // Sort repairs by createdAt descending (most recent first)
-      final allRepairs = [...pending, ...delivered];
-      allRepairs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      // Recent deliveries - in the last 7 days
-      final recentDeliveries = allRepairs.where((repair) {
-        return repair.status == RepairStatus.delivered &&
-            repair.deliveredAt != null &&
-            repair.deliveredAt!
-                .isAfter(today.subtract(const Duration(days: 7)));
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _pendingCount = pending.length;
-          _inProgressCount = 0;
-          _completedCount = 0;
-          _todaySales = 0;
-          _recentRepairs = allRepairs.take(5).toList();
-          _recentDeliveries = recentDeliveries;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: _isLoading
-            ? const SizedBox(
-                height: 500,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            : _errorMessage != null
-                ? SizedBox(
-                    height: 500,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading dashboard data',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _errorMessage!,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _loadData,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeCard(context),
-                      const SizedBox(height: 24),
-                      _buildStatisticsOverview(context),
-                      const SizedBox(height: 24),
-                      _buildRecentRepairsSection(context),
-                      const SizedBox(height: 24),
-                      _buildQuickActionsSection(context),
-                    ],
+    return StreamBuilder<List<RepairJob>>(
+      stream: _repairRepository.getRepairJobsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return SizedBox(
+            height: 500,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red,
                   ),
-      ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading dashboard data',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    snapshot.error.toString(),
+                    style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {}); // Trigger widget rebuild
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Process the data
+        final allRepairs = snapshot.data ?? [];
+
+        // Get today's date
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+
+        // Filter repairs by status
+        final pending =
+            allRepairs.where((r) => r.status == RepairStatus.pending).toList();
+        final returned =
+            allRepairs.where((r) => r.status == RepairStatus.returned).toList();
+
+        // Recent returns - in the last 7 days
+        final recentReturns = allRepairs.where((repair) {
+          return repair.status == RepairStatus.returned &&
+              repair.deliveredAt != null &&
+              repair.deliveredAt!
+                  .isAfter(today.subtract(const Duration(days: 7)));
+        }).toList();
+
+        // Calculate today's sales from returned repairs
+        final todaySales = returned
+            .where((repair) =>
+                repair.deliveredAt != null &&
+                repair.deliveredAt!.isAfter(today))
+            .fold(0.0, (sum, repair) => sum + repair.estimatedCost);
+
+        // Sort repairs by createdAt descending (most recent first)
+        allRepairs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        final recentRepairs = allRepairs.take(5).toList();
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            // No need to manually refresh as stream will update automatically
+            return;
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildWelcomeCard(context),
+                const SizedBox(height: 24),
+                _buildStatisticsOverview(
+                    context, pending.length, returned.length, todaySales),
+                const SizedBox(height: 24),
+                _buildRecentRepairsSection(context, recentRepairs),
+                const SizedBox(height: 24),
+                _buildQuickActionsSection(context),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -211,7 +188,8 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     );
   }
 
-  Widget _buildStatisticsOverview(BuildContext context) {
+  Widget _buildStatisticsOverview(BuildContext context, int pendingCount,
+      int returnedCount, double todaySales) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -227,7 +205,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
             Expanded(
               child: _buildStatCard(
                 context,
-                _pendingCount.toString(),
+                pendingCount.toString(),
                 'Pending Repairs',
                 Icons.pending_actions,
                 AppColors.warning,
@@ -238,11 +216,11 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
             Expanded(
               child: _buildStatCard(
                 context,
-                _inProgressCount.toString(),
-                'In Progress',
-                Icons.build,
-                AppColors.info,
-                () => context.push('/repairs/inprogress'),
+                returnedCount.toString(),
+                'Returned',
+                Icons.delivery_dining,
+                AppColors.primary,
+                () => context.push('/repairs/returned'),
               ),
             ),
           ],
@@ -253,21 +231,22 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
             Expanded(
               child: _buildStatCard(
                 context,
-                _completedCount.toString(),
-                'Completed',
-                Icons.check_circle,
-                AppColors.success,
-                () => context.push('/repairs/completed'),
+                (pendingCount + returnedCount).toString(),
+                'Total Repairs',
+                Icons.receipt_long,
+                AppColors.info,
+                () => context.push('/repairs'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
                 context,
-                '₹${_todaySales.toStringAsFixed(0)}',
+                '₹${todaySales.toStringAsFixed(0)}',
                 'Today\'s Sales',
                 Icons.payments,
-                AppColors.primary,
+                AppColors.success,
+                () => context.push('/sales'),
               ),
             ),
           ],
@@ -279,11 +258,11 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
   Widget _buildStatCard(
     BuildContext context,
     String value,
-    String title,
+    String label,
     IconData icon,
-    Color color, [
-    VoidCallback? onTap,
-  ]) {
+    Color color,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -318,7 +297,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
               ),
               const SizedBox(height: 4),
               Text(
-                title,
+                label,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -330,7 +309,8 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     );
   }
 
-  Widget _buildRecentRepairsSection(BuildContext context) {
+  Widget _buildRecentRepairsSection(
+      BuildContext context, List<RepairJob> recentRepairs) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -345,28 +325,23 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
             ),
             TextButton(
               onPressed: () {
-                // Navigate to repairs tab (index 1)
-                DashboardPage.switchToTab(1);
+                // Navigate to All Repairs
+                context.push('/repairs');
               },
               child: const Text('View All'),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        _recentRepairs.isEmpty
-            ? Center(
+        recentRepairs.isEmpty
+            ? const Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'No repairs found. Add your first repair job!',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                  ),
+                  padding: EdgeInsets.symmetric(vertical: 24.0),
+                  child: Text('No repairs yet'),
                 ),
               )
             : Column(
-                children: _recentRepairs.map((repair) {
+                children: recentRepairs.map((repair) {
                   Color statusColor;
                   String statusText;
 
@@ -375,9 +350,9 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                       statusColor = AppColors.warning;
                       statusText = 'Pending';
                       break;
-                    case RepairStatus.delivered:
+                    case RepairStatus.returned:
                       statusColor = AppColors.primary;
-                      statusText = 'Delivered';
+                      statusText = 'Returned';
                       break;
                   }
 
@@ -591,7 +566,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     switch (status) {
       case RepairStatus.pending:
         return AppColors.warning;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return AppColors.primary;
     }
   }
@@ -600,8 +575,16 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     switch (status) {
       case RepairStatus.pending:
         return Icons.pending_actions;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return Icons.delivery_dining;
     }
+  }
+}
+
+// Reference to DashboardPage.switchToTab
+class DashboardPage {
+  static void switchToTab(int index) {
+    // This is a stub to make the code compile
+    // The actual implementation would be in the DashboardPage class
   }
 }

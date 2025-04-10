@@ -30,15 +30,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize Supabase
-  await Supabase.initialize(
-    url:
-        'https://uwzceluyxgmmpmjvrmzk.supabase.co', // Replace with your Supabase URL
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3emNlbHV5eGdtbXBtanZybXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5NjMyMTAsImV4cCI6MjA1OTUzOTIxMH0.hDTLwklhWHdNy2GhcKtyopr1ip5wa1k42HpFOAgljMg', // Replace with your Supabase anon key
-    debug: false, // Set to true for debug logs
-  );
-
   // Setup service locator (now async)
   await setupServiceLocator();
 

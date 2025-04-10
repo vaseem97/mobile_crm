@@ -7,12 +7,17 @@ import '../../../../features/repair/data/repositories/repair_repository_impl.dar
 import '../../../../features/repair/domain/entities/repair_job.dart';
 
 class DashboardRepairsTab extends StatefulWidget {
-  const DashboardRepairsTab({Key? key}) : super(key: key);
+  // Static variables to track tab state
+  static RepairStatus _selectedTab = RepairStatus.pending;
+  static int _savedTabIndex = 0;
 
   // Static method to set the selected tab
   static void setSelectedTab(RepairStatus status) {
-    _DashboardRepairsTabState.navigateToTab(status);
+    _selectedTab = status;
+    _savedTabIndex = status == RepairStatus.pending ? 0 : 1;
   }
+
+  const DashboardRepairsTab({Key? key}) : super(key: key);
 
   @override
   State<DashboardRepairsTab> createState() => _DashboardRepairsTabState();
@@ -21,60 +26,53 @@ class DashboardRepairsTab extends StatefulWidget {
 class _DashboardRepairsTabState extends State<DashboardRepairsTab>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _searchController = TextEditingController();
   final _repairRepository = getService<RepairRepositoryImpl>();
   bool _isLoading = false;
   String? _errorMessage;
 
-  // This variable is used to track and restore the tab state
-  static int savedTabIndex = 0;
-
   @override
   void initState() {
     super.initState();
-    _tabController =
-        TabController(length: 2, vsync: this, initialIndex: savedTabIndex);
-    _tabController.addListener(_handleTabSelection);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: DashboardRepairsTab._savedTabIndex,
+    );
+
+    _tabController.addListener(() {
+      DashboardRepairsTab._savedTabIndex = _tabController.index;
+      DashboardRepairsTab._selectedTab = _tabController.index == 0
+          ? RepairStatus.pending
+          : RepairStatus.returned;
+    });
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
-    _searchController.dispose();
     super.dispose();
-  }
-
-  void _handleTabSelection() {
-    if (_tabController.indexIsChanging) {
-      savedTabIndex = _tabController.index;
-    }
-  }
-
-  // Custom method to navigate to a specific tab
-  static void navigateToTab(RepairStatus status) {
-    switch (status) {
-      case RepairStatus.pending:
-        savedTabIndex = 0;
-        break;
-      case RepairStatus.delivered:
-        savedTabIndex = 1;
-        break;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildSearchBar(),
-        _buildFilterTabs(),
+        TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.primary,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary,
+          tabs: const [
+            Tab(text: 'Pending'),
+            Tab(text: 'Returned'),
+          ],
+        ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
             children: [
               _buildRepairsList(RepairStatus.pending),
-              _buildRepairsList(RepairStatus.delivered),
+              _buildRepairsList(RepairStatus.returned),
             ],
           ),
         ),
@@ -82,104 +80,34 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search repairs, customers or devices...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.tune),
-            onPressed: () {
-              // Show advanced filters dialog
-            },
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFEEEEEE)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterTabs() {
-    return Container(
-      color: Colors.white,
-      child: TabBar(
-        controller: _tabController,
-        labelColor: AppColors.primary,
-        unselectedLabelColor: AppColors.textSecondary,
-        indicatorColor: AppColors.primary,
-        indicatorWeight: 3,
-        tabs: const [
-          Tab(text: 'Pending'),
-          Tab(text: 'Delivered'),
-        ],
-      ),
-    );
-  }
-
   Widget _buildRepairsList(RepairStatus status) {
-    return FutureBuilder<List<RepairJob>>(
-      future: _repairRepository.getRepairJobsByStatus(status),
+    return StreamBuilder<List<RepairJob>>(
+      stream: _repairRepository.getRepairJobsStream(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: Colors.red,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading repairs',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {});
-                  },
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
+            child: Text('Error: ${snapshot.error}'),
           );
         }
 
-        final repairs = snapshot.data ?? [];
+        final allRepairs = snapshot.data ?? [];
+        final filteredRepairs =
+            allRepairs.where((repair) => repair.status == status).toList();
 
-        if (repairs.isEmpty) {
+        if (filteredRepairs.isEmpty) {
           return _buildEmptyState(status);
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: repairs.length,
+          padding: const EdgeInsets.only(top: 16),
+          itemCount: filteredRepairs.length,
           itemBuilder: (context, index) {
-            final job = repairs[index];
+            final job = filteredRepairs[index];
             return RepairJobCard(
               id: job.id,
               customerName: job.customerName,
@@ -193,97 +121,52 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
                 context.push('/repair-details/${job.id}');
               },
               onEdit: () {
-                // Show edit dialog or navigate to edit page
+                context.push('/edit-repair/${job.id}');
               },
-              onDelete: () async {
-                final shouldDelete = await _showDeleteConfirmation(context);
-                if (shouldDelete == true) {
-                  try {
-                    await _repairRepository.deleteRepairJob(job.id);
-                    setState(() {}); // Refresh the list
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Repair job deleted successfully'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Error deleting repair: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                }
+              onDelete: () {
+                _showDeleteConfirmation(context, job);
               },
-              onStatusChange: () async {
-                final newStatus = await _showStatusUpdateDialog(context);
-                if (newStatus != null && newStatus != job.status) {
-                  try {
-                    // Add deliveredAt timestamp when status is changed to delivered
-                    final updatedJob = job.copyWith(
-                      status: newStatus,
-                      deliveredAt: newStatus == RepairStatus.delivered
-                          ? DateTime.now()
-                          : job.deliveredAt,
-                    );
+              onStatusChange: status == RepairStatus.pending
+                  ? () async {
+                      final newStatus = await _showStatusUpdateDialog(context);
+                      if (newStatus != null && newStatus != job.status) {
+                        try {
+                          // Add deliveredAt timestamp when status is changed to returned
+                          final updatedJob = job.copyWith(
+                            status: newStatus,
+                            deliveredAt: newStatus == RepairStatus.returned
+                                ? DateTime.now()
+                                : job.deliveredAt,
+                          );
 
-                    await _repairRepository.updateRepairJob(updatedJob);
-                    setState(() {}); // Refresh the list
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Status updated successfully'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
+                          await _repairRepository.updateRepairJob(updatedJob);
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Status updated successfully'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Error updating status: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }
                     }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Error updating status: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                }
-              },
+                  : null,
             );
           },
         );
       },
-    );
-  }
-
-  Future<bool?> _showDeleteConfirmation(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Repair Job'),
-        content: const Text(
-          'Are you sure you want to delete this repair job? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -298,10 +181,10 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
         message = 'No Pending Repairs';
         description = 'All repairs have been started or completed.';
         break;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         icon = Icons.delivery_dining;
-        message = 'No Delivered Repairs';
-        description = 'No devices have been delivered to customers yet.';
+        message = 'No Returned Repairs';
+        description = 'No devices have been returned to customers yet.';
         break;
     }
 
@@ -313,39 +196,93 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
           children: [
             Icon(
               icon,
-              size: 64,
-              color: Colors.grey.shade400,
+              size: 80,
+              color: AppColors.textSecondary.withOpacity(0.3),
             ),
             const SizedBox(height: 16),
             Text(
               message,
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
               description,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                   ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                context.push('/add-repair');
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Add New Repair'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            if (status == RepairStatus.pending)
+              ElevatedButton.icon(
+                onPressed: () {
+                  context.push('/add-repair');
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Add New Repair'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, RepairJob job) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Repair?'),
+        content: Text(
+            'Are you sure you want to delete the repair for ${job.deviceBrand} ${job.deviceModel}?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _repairRepository.deleteRepairJob(job.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Repair deleted successfully'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting repair: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
@@ -353,23 +290,20 @@ class _DashboardRepairsTabState extends State<DashboardRepairsTab>
   Future<RepairStatus?> _showStatusUpdateDialog(BuildContext context) async {
     return showDialog<RepairStatus>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update Repair Status'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _StatusOption(
-              status: RepairStatus.pending,
-              title: 'Pending',
-              description: 'Repair has not started',
-            ),
-            _StatusOption(
-              status: RepairStatus.delivered,
-              title: 'Delivered',
-              description: 'Device returned to customer',
-            ),
-          ],
-        ),
+      builder: (context) => SimpleDialog(
+        title: const Text('Update Status'),
+        children: [
+          _StatusOption(
+            status: RepairStatus.pending,
+            title: 'Pending',
+            description: 'Repair in progress',
+          ),
+          _StatusOption(
+            status: RepairStatus.returned,
+            title: 'Returned',
+            description: 'Device returned to customer',
+          ),
+        ],
       ),
     );
   }
@@ -396,7 +330,7 @@ class _StatusOption extends StatelessWidget {
         color = AppColors.warning;
         icon = Icons.pending_actions;
         break;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         color = AppColors.primary;
         icon = Icons.delivery_dining;
         break;

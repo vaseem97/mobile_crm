@@ -250,4 +250,30 @@ class RepairRepositoryImpl {
       throw Exception('Failed to update image URLs: $e');
     }
   }
+
+  // Get real-time stream of repair jobs
+  Stream<List<RepairJob>> getRepairJobsStream() {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      return _firestoreService
+          .collection(AppConstants.repairJobsCollection)
+          .where('shopId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id; // Ensure ID is set
+          return RepairJobModel.fromJson(data);
+        }).toList();
+      });
+    } catch (e) {
+      throw Exception('Failed to get repair jobs stream: $e');
+    }
+  }
 }

@@ -41,8 +41,8 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
     switch (route) {
       case 'pending':
         return RepairStatus.pending;
-      case 'delivered':
-        return RepairStatus.delivered;
+      case 'returned':
+        return RepairStatus.returned;
       default:
         return RepairStatus.pending;
     }
@@ -52,8 +52,8 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
     switch (status) {
       case RepairStatus.pending:
         return 'Pending Repairs';
-      case RepairStatus.delivered:
-        return 'Delivered Repairs';
+      case RepairStatus.returned:
+        return 'Returned Devices';
     }
   }
 
@@ -61,7 +61,7 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
     switch (status) {
       case RepairStatus.pending:
         return Icons.pending_actions;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return Icons.delivery_dining;
     }
   }
@@ -70,7 +70,7 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
     switch (status) {
       case RepairStatus.pending:
         return AppColors.warning;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return AppColors.primary;
     }
   }
@@ -243,7 +243,12 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
                 if (newStatus != null && newStatus != job.status) {
                   try {
                     await _repairRepository.updateRepairJob(
-                      job.copyWith(status: newStatus),
+                      job.copyWith(
+                        status: newStatus,
+                        deliveredAt: newStatus == RepairStatus.returned
+                            ? DateTime.now()
+                            : job.deliveredAt,
+                      ),
                     );
                     setState(() {}); // Refresh the list
                     if (mounted) {
@@ -306,8 +311,8 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
         message = 'No pending repairs';
         icon = Icons.inbox;
         break;
-      case RepairStatus.delivered:
-        message = 'No delivered repairs';
+      case RepairStatus.returned:
+        message = 'No returned devices';
         icon = Icons.delivery_dining;
         break;
     }
@@ -358,8 +363,8 @@ class _FilteredRepairsPageState extends State<FilteredRepairsPage> {
               description: 'Repair has not started',
             ),
             _StatusOption(
-              status: RepairStatus.delivered,
-              title: 'Delivered',
+              status: RepairStatus.returned,
+              title: 'Returned',
               description: 'Device returned to customer',
             ),
           ],
@@ -390,7 +395,7 @@ class _StatusOption extends StatelessWidget {
         color = AppColors.warning;
         icon = Icons.pending_actions;
         break;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         color = AppColors.primary;
         icon = Icons.delivery_dining;
         break;

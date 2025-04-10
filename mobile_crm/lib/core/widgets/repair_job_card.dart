@@ -5,7 +5,7 @@ import '../theme/app_colors.dart';
 
 enum RepairStatus {
   pending, // Device is being repaired
-  delivered, // Repair completed and device delivered to customer
+  returned, // Device has been returned to customer
 }
 
 class RepairJobCard extends StatelessWidget {
@@ -176,7 +176,7 @@ class RepairJobCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (status != RepairStatus.delivered &&
+                if (status != RepairStatus.returned &&
                     onStatusChange != null) ...[
                   const SizedBox(height: 12),
                   InkWell(
@@ -224,9 +224,9 @@ class RepairJobCard extends StatelessWidget {
   String _getStatusText() {
     switch (status) {
       case RepairStatus.pending:
-        return 'Pending';
-      case RepairStatus.delivered:
-        return 'Delivered';
+        return 'Pending Repair';
+      case RepairStatus.returned:
+        return 'Device Returned';
     }
   }
 
@@ -234,7 +234,7 @@ class RepairJobCard extends StatelessWidget {
     switch (status) {
       case RepairStatus.pending:
         return Icons.pending_actions;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return Icons.delivery_dining;
     }
   }
@@ -243,7 +243,7 @@ class RepairJobCard extends StatelessWidget {
     switch (status) {
       case RepairStatus.pending:
         return AppColors.warning;
-      case RepairStatus.delivered:
+      case RepairStatus.returned:
         return AppColors.primary;
     }
   }
