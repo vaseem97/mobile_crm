@@ -17,7 +17,7 @@ class DashboardRepairsTab extends StatefulWidget {
     _savedTabIndex = status == RepairStatus.pending ? 0 : 1;
   }
 
-  const DashboardRepairsTab({Key? key}) : super(key: key);
+  const DashboardRepairsTab({super.key});
 
   @override
   State<DashboardRepairsTab> createState() => _DashboardRepairsTabState();

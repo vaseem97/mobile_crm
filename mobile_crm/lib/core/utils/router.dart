@@ -8,6 +8,10 @@ import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/repair/presentation/pages/add_repair_page.dart';
 import '../../features/repair/presentation/pages/repair_details_page.dart';
 import '../../features/repair/presentation/pages/filtered_repairs_page.dart';
+import '../../features/invoice/presentation/pages/invoice_selection_page.dart';
+import '../../features/invoice/presentation/pages/invoice_preview_page.dart';
+import '../../features/customer/presentation/pages/customer_list_page.dart';
+import '../../features/customer/presentation/pages/customer_detail_page.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
@@ -112,6 +116,88 @@ final GoRouter appRouter = GoRouter(
                 return CustomTransitionPage(
                   key: state.pageKey,
                   child: FilteredRepairsPage(status: status),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                );
+              },
+            ),
+            GoRoute(
+              path: 'invoice-selection',
+              name: 'invoice-selection',
+              pageBuilder: (context, state) {
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  child: const InvoiceSelectionPage(),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                );
+              },
+            ),
+            GoRoute(
+              path: 'invoice-preview/:repairId',
+              name: 'invoice-preview',
+              pageBuilder: (context, state) {
+                final repairId = state.pathParameters['repairId']!;
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  child: InvoicePreviewPage(repairId: repairId),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                );
+              },
+            ),
+            GoRoute(
+              path: 'customer-list',
+              name: 'customer-list',
+              pageBuilder: (context, state) {
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  child: const CustomerListPage(),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                );
+              },
+            ),
+            GoRoute(
+              path: 'customer-detail/:customerId',
+              name: 'customer-detail',
+              pageBuilder: (context, state) {
+                final customerId = state.pathParameters['customerId']!;
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  child: CustomerDetailPage(customerId: customerId),
                   transitionsBuilder:
                       (context, animation, secondaryAnimation, child) {
                     return SlideTransition(

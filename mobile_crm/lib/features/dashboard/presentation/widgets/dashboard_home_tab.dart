@@ -4,12 +4,15 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/repair_job_card.dart';
 import '../../../../core/services/service_locator.dart';
+import '../../../../core/services/firebase_auth_service.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
 import '../pages/dashboard_page.dart';
+import '../widgets/dashboard_stats_tab.dart';
 
 class DashboardHomeTab extends StatefulWidget {
-  const DashboardHomeTab({Key? key}) : super(key: key);
+  const DashboardHomeTab({super.key});
 
   @override
   State<DashboardHomeTab> createState() => _DashboardHomeTabState();
@@ -17,6 +20,38 @@ class DashboardHomeTab extends StatefulWidget {
 
 class _DashboardHomeTabState extends State<DashboardHomeTab> {
   final _repairRepository = getService<RepairRepositoryImpl>();
+  final _authService = getService<FirebaseAuthService>();
+  final _firestoreService = getService<FirestoreService>();
+
+  Map<String, dynamic>? _userData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    if (_authService.currentUser == null) return;
+
+    try {
+      // Start loading user data
+
+      final uid = _authService.currentUser!.uid;
+      final docSnapshot = await _firestoreService.getDocument(
+        collectionPath: 'users',
+        documentId: uid,
+      );
+
+      if (docSnapshot.exists) {
+        setState(() {
+          _userData = docSnapshot.data() as Map<String, dynamic>?;
+        });
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,14 +112,6 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
         final returned =
             allRepairs.where((r) => r.status == RepairStatus.returned).toList();
 
-        // Recent returns - in the last 7 days
-        final recentReturns = allRepairs.where((repair) {
-          return repair.status == RepairStatus.returned &&
-              repair.deliveredAt != null &&
-              repair.deliveredAt!
-                  .isAfter(today.subtract(const Duration(days: 7)));
-        }).toList();
-
         // Calculate today's sales from returned repairs
         final todaySales = returned
             .where((repair) =>
@@ -123,6 +150,9 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
   }
 
   Widget _buildWelcomeCard(BuildContext context) {
+    // Get shop name from user data
+    final shopName = _userData?['shopName'] ?? 'Your Shop';
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -143,7 +173,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                   backgroundColor: Colors.white.withOpacity(0.2),
                   radius: 24,
                   child: const Icon(
-                    Icons.person,
+                    Icons.store,
                     color: Colors.white,
                     size: 28,
                   ),
@@ -154,7 +184,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome back, Shop Owner',
+                        'Welcome back, $shopName',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -235,7 +265,10 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                 'Total Repairs',
                 Icons.receipt_long,
                 AppColors.info,
-                () => context.push('/repairs'),
+                () {
+                  // Switch to Repairs tab
+                  DashboardPage.switchToTab(1);
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -246,7 +279,12 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                 'Today\'s Sales',
                 Icons.payments,
                 AppColors.success,
-                () => context.push('/sales'),
+                () {
+                  // Set the desired period to 'Today'
+                  DashboardStatsTab.selectTodayPeriod();
+                  // Switch to Stats tab
+                  DashboardPage.switchToTab(2);
+                },
               ),
             ),
           ],
@@ -325,8 +363,8 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
             ),
             TextButton(
               onPressed: () {
-                // Navigate to All Repairs
-                context.push('/repairs');
+                // Switch to Repairs tab
+                DashboardPage.switchToTab(1);
               },
               child: const Text('View All'),
             ),
@@ -478,9 +516,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                 'Generate Invoice',
                 Icons.receipt_long,
                 AppColors.secondary,
-                () {
-                  // Navigate to invoice generation
-                },
+                () => context.push('/invoice-selection'),
               ),
             ),
           ],
@@ -506,9 +542,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                 'Customer List',
                 Icons.people_outline,
                 AppColors.success,
-                () {
-                  // Navigate to customer list
-                },
+                () => context.push('/customer-list'),
               ),
             ),
           ],
@@ -560,31 +594,5 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
         ),
       ),
     );
-  }
-
-  Color _getStatusColor(RepairStatus status) {
-    switch (status) {
-      case RepairStatus.pending:
-        return AppColors.warning;
-      case RepairStatus.returned:
-        return AppColors.primary;
-    }
-  }
-
-  IconData _getStatusIcon(RepairStatus status) {
-    switch (status) {
-      case RepairStatus.pending:
-        return Icons.pending_actions;
-      case RepairStatus.returned:
-        return Icons.delivery_dining;
-    }
-  }
-}
-
-// Reference to DashboardPage.switchToTab
-class DashboardPage {
-  static void switchToTab(int index) {
-    // This is a stub to make the code compile
-    // The actual implementation would be in the DashboardPage class
   }
 }

@@ -5,10 +5,20 @@ import '../../../../core/services/service_locator.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
 import '../../../../core/widgets/repair_job_card.dart';
-import 'dart:math';
+import 'dart:math' show min;
 
 class DashboardStatsTab extends StatefulWidget {
-  const DashboardStatsTab({Key? key}) : super(key: key);
+  const DashboardStatsTab({super.key});
+
+  // Static method to set the period to 'Today'
+  static void selectTodayPeriod() {
+    // We'll implement this differently
+    // by using a static variable to track the desired period
+    _desiredPeriod = 'Today';
+  }
+
+  // Static variable to track the desired period
+  static String? _desiredPeriod;
 
   @override
   State<DashboardStatsTab> createState() => _DashboardStatsTabState();
@@ -17,6 +27,17 @@ class DashboardStatsTab extends StatefulWidget {
 class _DashboardStatsTabState extends State<DashboardStatsTab> {
   final _repairRepository = getService<RepairRepositoryImpl>();
   String _selectedPeriod = 'This Month';
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if there's a desired period set from outside
+    if (DashboardStatsTab._desiredPeriod != null) {
+      _selectedPeriod = DashboardStatsTab._desiredPeriod!;
+      // Reset the static variable
+      DashboardStatsTab._desiredPeriod = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +491,7 @@ class _DashboardStatsTabState extends State<DashboardStatsTab> {
         padding: const EdgeInsets.all(16.0),
         child: Text(
           message,
-          style: TextStyle(
+          style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 16,
           ),

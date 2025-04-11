@@ -3,6 +3,7 @@ import 'firebase_auth_service.dart';
 import 'firestore_service.dart';
 import 'storage_service.dart';
 import '../../features/repair/data/repositories/repair_repository_impl.dart';
+import '../../features/customer/data/repositories/customer_repository_impl.dart';
 
 final GetIt locator = GetIt.instance;
 
@@ -20,6 +21,8 @@ Future<void> setupServiceLocator() async {
   // Repositories
   locator.registerLazySingleton<RepairRepositoryImpl>(
       () => RepairRepositoryImpl());
+  locator.registerLazySingleton<CustomerRepositoryImpl>(
+      () => CustomerRepositoryImpl());
 }
 
 // Helper function to easily access services

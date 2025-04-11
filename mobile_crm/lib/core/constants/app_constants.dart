@@ -8,6 +8,7 @@ class AppConstants {
   static const String repairJobsCollection = 'repair_jobs';
   static const String statisticsCollection = 'statistics';
   static const String shopInfoCollection = 'shop_info';
+  static const String customersCollection = 'customers';
 
   // Storage paths
   static const String repairImagesPath = 'repair_images';

@@ -41,20 +41,37 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     });
 
     try {
+      // First try to get the repair job with active check
       final repair = await _repairRepository.getRepairJobById(widget.repairId);
 
-      if (mounted) {
-        setState(() {
-          _repairJob = repair;
-          _isLoading = false;
-        });
-      }
+      if (repair != null) {
+        // Repair found and is active
+        if (mounted) {
+          setState(() {
+            _repairJob = repair;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Check if the repair exists but is deleted
+        final deletedRepair = await _repairRepository
+            .getRepairJobById(widget.repairId, checkActive: false);
 
-      if (repair == null && mounted) {
-        setState(() {
-          _errorMessage = 'Repair job not found';
-          _isLoading = false;
-        });
+        if (mounted) {
+          if (deletedRepair != null) {
+            // Repair exists but was deleted
+            setState(() {
+              _errorMessage = 'This repair job has been deleted';
+              _isLoading = false;
+            });
+          } else {
+            // Repair doesn't exist at all
+            setState(() {
+              _errorMessage = 'Repair job not found';
+              _isLoading = false;
+            });
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1054,15 +1071,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     );
   }
 
-  String _formatStatus(RepairStatus status) {
-    switch (status) {
-      case RepairStatus.pending:
-        return 'Pending';
-      case RepairStatus.returned:
-        return 'Returned';
-    }
-  }
-
   void _showMoreOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1196,7 +1204,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
-              Icons.search_off,
+              Icons.delete_outline,
               size: 72,
               color: Colors.grey,
             ),
@@ -1208,7 +1216,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'The repair job you are looking for does not exist or may have been deleted.',
+              'This repair job has been deleted and is no longer available.',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),

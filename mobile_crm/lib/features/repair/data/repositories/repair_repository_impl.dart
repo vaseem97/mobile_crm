@@ -112,7 +112,8 @@ class RepairRepositoryImpl {
   }
 
   // Get repair job by ID
-  Future<RepairJob?> getRepairJobById(String id) async {
+  Future<RepairJob?> getRepairJobById(String id,
+      {bool checkActive = true}) async {
     try {
       final doc = await _firestoreService.getDocument(
         collectionPath: AppConstants.repairJobsCollection,
@@ -124,6 +125,12 @@ class RepairRepositoryImpl {
       }
 
       final data = doc.data() as Map<String, dynamic>;
+
+      // Check if the repair is active (not soft-deleted)
+      if (checkActive && data['isActive'] == false) {
+        return null; // Return null for soft-deleted repairs
+      }
+
       data['id'] = doc.id; // Ensure ID is set
       return RepairJobModel.fromJson(data);
     } catch (e) {

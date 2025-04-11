@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../widgets/dashboard_home_tab.dart';
@@ -8,8 +7,8 @@ import '../widgets/dashboard_profile_tab.dart';
 import '../../presentation/widgets/dashboard_repairs_tab.dart';
 
 // Global key to access the dashboard state
-final GlobalKey<_DashboardPageState> dashboardKey =
-    GlobalKey<_DashboardPageState>();
+final GlobalKey<DashboardPageState> dashboardKey =
+    GlobalKey<DashboardPageState>();
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -23,12 +22,15 @@ class DashboardPage extends StatefulWidget {
   }
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<DashboardPage> createState() => DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class DashboardPageState extends State<DashboardPage> {
   int _currentIndex = 0;
   DateTime? _lastBackPressTime;
+
+  // Page controller for animated transitions
+  late PageController _pageController;
 
   final List<Widget> _tabs = [
     const DashboardHomeTab(),
@@ -44,9 +46,16 @@ class _DashboardPageState extends State<DashboardPage> {
     'Profile',
   ];
 
-  // Public method to switch tabs
+  // Public method to switch tabs with animation
   void switchTab(int index) {
     if (index >= 0 && index < _tabs.length) {
+      // Animate to the selected tab
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+
       setState(() {
         _currentIndex = index;
       });
@@ -54,9 +63,26 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize page controller
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _handleBackNavigation();
+      },
       child: Scaffold(
         appBar: AppBar(
           title: Text(_tabTitles[_currentIndex]),
@@ -76,7 +102,16 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ],
         ),
-        body: _tabs[_currentIndex],
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(), // Disable swiping
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          children: _tabs,
+        ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -90,6 +125,13 @@ class _DashboardPageState extends State<DashboardPage> {
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
             onTap: (index) {
+              // Animate to the selected tab
+              _pageController.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+
               setState(() {
                 _currentIndex = index;
               });
@@ -135,14 +177,31 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<bool> _onWillPop() async {
+  // Handle back navigation
+  void _handleBackNavigation() async {
+    // If not on the home tab, switch to home tab instead of exiting
+    if (_currentIndex != 0) {
+      // Animate to the home tab
+      _pageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+
+      setState(() {
+        _currentIndex = 0;
+      });
+      return; // Prevent app from exiting
+    }
+
+    // Only show exit dialog when on home tab
     if (_lastBackPressTime == null ||
         DateTime.now().difference(_lastBackPressTime!) >
             const Duration(seconds: 2)) {
       // First time back button is pressed or more than 2 seconds since last press
       _lastBackPressTime = DateTime.now();
 
-      final shouldPop = await showDialog<bool>(
+      final shouldExit = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Exit App'),
@@ -163,10 +222,13 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       );
 
-      return shouldPop ?? false;
+      if (shouldExit == true && mounted) {
+        // Use system navigation to pop the route
+        Navigator.of(context).pop();
+      }
+    } else if (mounted) {
+      // If back button is pressed twice quickly (within 2 seconds), exit without confirmation
+      Navigator.of(context).pop();
     }
-
-    // If back button is pressed twice quickly (within 2 seconds), exit without confirmation
-    return true;
   }
 }
