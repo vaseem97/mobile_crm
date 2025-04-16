@@ -2,6 +2,8 @@ import 'package:get_it/get_it.dart';
 import 'firebase_auth_service.dart';
 import 'firestore_service.dart';
 import 'storage_service.dart';
+import 'cloudinary_service.dart';
+import 'connectivity_service.dart';
 import '../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../features/customer/data/repositories/customer_repository_impl.dart';
 
@@ -15,6 +17,13 @@ Future<void> setupServiceLocator() async {
 
   // Register Supabase storage service (no need to initialize anymore)
   locator.registerLazySingleton<StorageService>(() => StorageService());
+
+  // Register Cloudinary service
+  locator.registerLazySingleton<CloudinaryService>(() => CloudinaryService());
+
+  // Register Connectivity service
+  locator
+      .registerLazySingleton<ConnectivityService>(() => ConnectivityService());
 
   // Register the general Supabase storage service (optional for advanced usage)
 

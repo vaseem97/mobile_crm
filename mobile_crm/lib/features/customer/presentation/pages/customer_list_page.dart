@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/services/service_locator.dart';
+import '../../../../core/widgets/connectivity_banner.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../data/repositories/customer_repository_impl.dart';
 import '../../domain/entities/customer.dart';
 
@@ -15,10 +17,12 @@ class CustomerListPage extends StatefulWidget {
 
 class _CustomerListPageState extends State<CustomerListPage> {
   final _customerRepository = getService<CustomerRepositoryImpl>();
+  final _connectivityService = getService<ConnectivityService>();
   final _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = false;
   bool _isExtracting = false;
+  bool _isCheckingConnection = false;
   List<Customer> _customers = [];
 
   @override
@@ -123,6 +127,29 @@ class _CustomerListPageState extends State<CustomerListPage> {
     }
   }
 
+  Future<void> _checkInternetConnection() async {
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    final hasConnection = await _connectivityService.checkConnection();
+
+    setState(() {
+      _isCheckingConnection = false;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(hasConnection
+              ? 'Connected to the internet'
+              : 'No internet connection available'),
+          backgroundColor: hasConnection ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,21 +161,37 @@ class _CustomerListPageState extends State<CustomerListPage> {
         ),
         actions: [
           IconButton(
+            icon: _isCheckingConnection
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.wifi_find),
+            onPressed: _isCheckingConnection ? null : _checkInternetConnection,
+            tooltip: 'Check internet connection',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isExtracting ? null : _extractCustomers,
             tooltip: 'Extract Customers from Repairs',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildCustomerList(),
-          ),
-        ],
+      body: ConnectivityBanner(
+        offlineColor: const Color(0xFFE57373),
+        onlineColor: const Color(0xFF66BB6A),
+        offlineMessage: 'Network unavailable',
+        showOnlineStatus: true,
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildCustomerList(),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {

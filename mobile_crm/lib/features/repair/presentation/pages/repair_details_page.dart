@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/repair_job_card.dart';
+import '../../../../core/widgets/image_gallery_widget.dart';
 import '../../../../core/services/service_locator.dart';
 import '../../../../features/repair/data/repositories/repair_repository_impl.dart';
 import '../../../../features/repair/domain/entities/repair_job.dart';
@@ -202,6 +203,19 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           const SizedBox(height: 16),
           _buildStatusInfoCard(),
           const SizedBox(height: 16),
+          if (_repairJob!.imageUrls != null &&
+              _repairJob!.imageUrls!.isNotEmpty) ...[
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ImageGalleryWidget(imageUrls: _repairJob!.imageUrls!),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           _buildRepairIssueCard(),
           const SizedBox(height: 16),
           _buildPaymentInfoCard(),

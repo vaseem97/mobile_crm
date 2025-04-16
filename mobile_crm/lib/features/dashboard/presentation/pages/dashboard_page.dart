@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/connectivity_banner.dart';
 import '../widgets/dashboard_home_tab.dart';
 import '../widgets/dashboard_stats_tab.dart';
 import '../widgets/dashboard_profile_tab.dart';
@@ -102,15 +103,20 @@ class DashboardPageState extends State<DashboardPage> {
             ),
           ],
         ),
-        body: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(), // Disable swiping
-          onPageChanged: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          children: _tabs,
+        body: ConnectivityBanner(
+          offlineColor: const Color(0xFFE53935),
+          onlineColor: const Color(0xFF43A047),
+          offlineMessage: 'You are currently offline',
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(), // Disable swiping
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            children: _tabs,
+          ),
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(

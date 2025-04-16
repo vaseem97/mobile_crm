@@ -8,7 +8,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../../../../core/widgets/repair_job_card.dart';
+import '../../../../core/widgets/image_picker_widget.dart';
 import '../../../../core/services/service_locator.dart';
+import '../../../../core/services/cloudinary_service.dart';
 import '../../data/repositories/repair_repository_impl.dart';
 import '../../domain/entities/repair_job.dart';
 import 'dart:math';
@@ -23,6 +25,7 @@ class AddRepairPage extends StatefulWidget {
 class _AddRepairPageState extends State<AddRepairPage> {
   final _formKey = GlobalKey<FormState>();
   final _repairRepository = getService<RepairRepositoryImpl>();
+  final _cloudinaryService = getService<CloudinaryService>();
   final _scrollController = ScrollController();
   bool _isPatternActive = false;
 
@@ -41,6 +44,10 @@ class _AddRepairPageState extends State<AddRepairPage> {
   List<List<int>> _patternDots = [];
   List<String> _patternDescription = [];
   int? _startDot;
+
+  // Image picking
+  List<File> _selectedImages = [];
+  bool _isUploadingImages = false;
 
   // Repair Info
   final _estimatedCostController = TextEditingController();
@@ -341,13 +348,41 @@ class _AddRepairPageState extends State<AddRepairPage> {
         createdAt: DateTime.now(),
         status: RepairStatus.pending,
         notes: _notesController.text,
-        imageUrls: [], // Empty list for now
+        imageUrls: [], // Empty list for now - we'll update after upload
         warrantyPeriod: _selectedWarranty,
       );
 
       // 2. Create document in Firestore
       tempRepairId = await _repairRepository.createRepairJob(newRepairData);
       print('Repair document created with ID: $tempRepairId');
+
+      // 3. Upload images if any, and update imageUrls field
+      if (_selectedImages.isNotEmpty) {
+        setState(() {
+          _isUploadingImages = true;
+        });
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Uploading images...'),
+            duration: Duration(seconds: 60),
+            backgroundColor: Colors.grey,
+          ),
+        );
+
+        // Upload images to Cloudinary
+        final imageUrls =
+            await _cloudinaryService.uploadImages(_selectedImages);
+
+        // Update repair document with image URLs
+        await _repairRepository.updateRepairJobImageUrls(
+            tempRepairId!, imageUrls);
+
+        setState(() {
+          _isUploadingImages = false;
+        });
+      }
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
@@ -382,6 +417,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _isUploadingImages = false;
         });
       }
     }
@@ -1212,17 +1248,29 @@ class _AddRepairPageState extends State<AddRepairPage> {
       children: [
         Row(
           children: [
-            Icon(Icons.build, color: AppColors.primary),
+            Icon(Icons.build_outlined, color: AppColors.primary),
             const SizedBox(width: 8),
             Text(
-              'Repair Details',
+              'Repair Information',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+
+        // Device Images
+        ImagePickerWidget(
+          selectedImages: _selectedImages,
+          onImagesSelected: (images) {
+            setState(() {
+              _selectedImages = images;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
         Row(
           children: [
             Expanded(

@@ -85,4 +85,9 @@ class AppConstants {
     '6 Months',
     '1 Year',
   ];
+
+  // Cloudinary configuration
+  static const String cloudinaryApiKey = "268839765697753";
+  static const String cloudinaryApiSecret = "kfO0acQafXvpQZthuBiM6UzWm-Q";
+  static const String cloudinaryCloudName = "dq4rmz79q";
 }

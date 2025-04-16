@@ -73,6 +73,9 @@ dependencies:
   path_provider: ^2.1.4
   printing: ^5.12.0
   fl_chart: ^0.70.2
+  cloudinary: ^1.2.0
+  image_picker: ^1.0.0
+  connectivity_plus: ^6.1.3
 
 dev_dependencies:
   flutter_test:

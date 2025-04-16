@@ -16,12 +16,12 @@ class InvoiceService {
   final FirebaseAuthService _authService = getService<FirebaseAuthService>();
   final FirestoreService _firestoreService = getService<FirestoreService>();
   final _uuid = const Uuid();
-  
+
   // Generate a new invoice for a repair job
   Future<Invoice> generateInvoice(RepairJob repairJob) async {
     // Get shop information
     final shopInfo = await _getShopInfo();
-    
+
     // Calculate invoice amounts
     final subtotal = repairJob.estimatedCost;
     final taxRate = 0.18; // 18% GST (can be made configurable)
@@ -29,11 +29,12 @@ class InvoiceService {
     final total = subtotal + taxAmount;
     final amountPaid = repairJob.advanceAmount;
     final amountDue = total - amountPaid;
-    
+
     // Generate invoice number
     final now = DateTime.now();
-    final invoiceNumber = 'INV-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${_uuid.v4().substring(0, 4).toUpperCase()}';
-    
+    final invoiceNumber =
+        'INV-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${_uuid.v4().substring(0, 4).toUpperCase()}';
+
     // Create invoice
     return Invoice(
       id: _uuid.v4(),
@@ -47,7 +48,8 @@ class InvoiceService {
       amountPaid: amountPaid,
       amountDue: amountDue,
       notes: 'Thank you for your business!',
-      termsAndConditions: 'All repair services come with a 30-day warranty. Returns and refunds are subject to our store policy.',
+      termsAndConditions:
+          'All repair services come with a 30-day warranty. Returns and refunds are subject to our store policy.',
       shopName: shopInfo['shopName'],
       shopAddress: shopInfo['shopAddress'],
       shopPhone: shopInfo['shopPhone'],
@@ -55,19 +57,19 @@ class InvoiceService {
       shopLogo: shopInfo['shopLogo'],
     );
   }
-  
+
   // Get shop information from Firestore
   Future<Map<String, String?>> _getShopInfo() async {
     final userId = _authService.currentUser?.uid;
     if (userId == null) {
       throw Exception('User not authenticated');
     }
-    
+
     final docSnapshot = await _firestoreService.getDocument(
       collectionPath: 'users',
       documentId: userId,
     );
-    
+
     if (!docSnapshot.exists) {
       return {
         'shopName': 'Mobile Repair Shop',
@@ -77,9 +79,9 @@ class InvoiceService {
         'shopLogo': null,
       };
     }
-    
+
     final data = docSnapshot.data() as Map<String, dynamic>;
-    
+
     return {
       'shopName': data['shopName'] as String? ?? 'Mobile Repair Shop',
       'shopAddress': data['shopAddress'] as String? ?? 'Shop Address',
@@ -88,24 +90,24 @@ class InvoiceService {
       'shopLogo': data['shopLogo'] as String?,
     };
   }
-  
+
   // Generate PDF from invoice
   Future<Uint8List> generatePdf(Invoice invoice) async {
     final pdf = pw.Document();
-    
+
     // Load fonts
     final regularFont = await PdfGoogleFonts.nunitoRegular();
     final boldFont = await PdfGoogleFonts.nunitoBold();
-    
+
     // Format currency
     final currencyFormat = NumberFormat.currency(
       symbol: '₹',
       decimalDigits: 2,
     );
-    
+
     // Format date
     final dateFormat = DateFormat('dd MMM yyyy');
-    
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -134,17 +136,20 @@ class InvoiceService {
                         if (invoice.shopAddress != null)
                           pw.Text(
                             invoice.shopAddress!,
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                         if (invoice.shopPhone != null)
                           pw.Text(
                             'Phone: ${invoice.shopPhone}',
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                         if (invoice.shopEmail != null)
                           pw.Text(
                             'Email: ${invoice.shopEmail}',
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                       ],
                     ),
@@ -152,7 +157,8 @@ class InvoiceService {
                       padding: const pw.EdgeInsets.all(10),
                       decoration: pw.BoxDecoration(
                         color: PdfColors.blue50,
-                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                        borderRadius:
+                            const pw.BorderRadius.all(pw.Radius.circular(10)),
                       ),
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -168,30 +174,34 @@ class InvoiceService {
                           pw.SizedBox(height: 4),
                           pw.Text(
                             'Invoice #: ${invoice.invoiceNumber}',
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                           pw.Text(
                             'Date: ${dateFormat.format(invoice.invoiceDate)}',
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                           pw.Text(
                             'Repair ID: ${invoice.repairJob.id}',
-                            style: pw.TextStyle(font: regularFont, fontSize: 10),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                
+
                 pw.SizedBox(height: 30),
-                
+
                 // Customer Information
                 pw.Container(
                   padding: const pw.EdgeInsets.all(10),
                   decoration: pw.BoxDecoration(
                     color: PdfColors.grey100,
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                    borderRadius:
+                        const pw.BorderRadius.all(pw.Radius.circular(10)),
                   ),
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -218,12 +228,14 @@ class InvoiceService {
                             ),
                             pw.Text(
                               'Phone: ${invoice.repairJob.customerPhone}',
-                              style: pw.TextStyle(font: regularFont, fontSize: 10),
+                              style:
+                                  pw.TextStyle(font: regularFont, fontSize: 10),
                             ),
                             if (invoice.repairJob.customerEmail.isNotEmpty)
                               pw.Text(
                                 'Email: ${invoice.repairJob.customerEmail}',
-                                style: pw.TextStyle(font: regularFont, fontSize: 10),
+                                style: pw.TextStyle(
+                                    font: regularFont, fontSize: 10),
                               ),
                           ],
                         ),
@@ -251,12 +263,14 @@ class InvoiceService {
                             if (invoice.repairJob.deviceColor.isNotEmpty)
                               pw.Text(
                                 'Color: ${invoice.repairJob.deviceColor}',
-                                style: pw.TextStyle(font: regularFont, fontSize: 10),
+                                style: pw.TextStyle(
+                                    font: regularFont, fontSize: 10),
                               ),
                             if (invoice.repairJob.deviceImei.isNotEmpty)
                               pw.Text(
                                 'IMEI: ${invoice.repairJob.deviceImei}',
-                                style: pw.TextStyle(font: regularFont, fontSize: 10),
+                                style: pw.TextStyle(
+                                    font: regularFont, fontSize: 10),
                               ),
                           ],
                         ),
@@ -264,9 +278,9 @@ class InvoiceService {
                     ],
                   ),
                 ),
-                
+
                 pw.SizedBox(height: 20),
-                
+
                 // Repair Details
                 pw.Text(
                   'REPAIR DETAILS',
@@ -277,11 +291,12 @@ class InvoiceService {
                   ),
                 ),
                 pw.SizedBox(height: 10),
-                
+
                 // Table Header
                 pw.Container(
                   color: PdfColors.blue100,
-                  padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  padding: const pw.EdgeInsets.symmetric(
+                      vertical: 8, horizontal: 10),
                   child: pw.Row(
                     children: [
                       pw.Expanded(
@@ -308,7 +323,7 @@ class InvoiceService {
                     ],
                   ),
                 ),
-                
+
                 // Repair Items
                 pw.Container(
                   decoration: const pw.BoxDecoration(
@@ -322,7 +337,8 @@ class InvoiceService {
                     children: [
                       // Problem description
                       pw.Container(
-                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                        padding: const pw.EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 10),
                         decoration: const pw.BoxDecoration(
                           border: pw.Border(
                             bottom: pw.BorderSide(color: PdfColors.grey300),
@@ -334,7 +350,8 @@ class InvoiceService {
                               flex: 5,
                               child: pw.Text(
                                 'Repair Service: ${invoice.repairJob.problem}',
-                                style: pw.TextStyle(font: regularFont, fontSize: 11),
+                                style: pw.TextStyle(
+                                    font: regularFont, fontSize: 11),
                               ),
                             ),
                             pw.Expanded(
@@ -342,18 +359,20 @@ class InvoiceService {
                               child: pw.Text(
                                 currencyFormat.format(invoice.subtotal),
                                 textAlign: pw.TextAlign.right,
-                                style: pw.TextStyle(font: regularFont, fontSize: 11),
+                                style: pw.TextStyle(
+                                    font: regularFont, fontSize: 11),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      
+
                       // Parts replaced (if any)
                       if (invoice.repairJob.partsToReplace.isNotEmpty)
                         ...invoice.repairJob.partsToReplace.map((part) {
                           return pw.Container(
-                            padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                            padding: const pw.EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 10),
                             decoration: const pw.BoxDecoration(
                               border: pw.Border(
                                 bottom: pw.BorderSide(color: PdfColors.grey300),
@@ -365,7 +384,8 @@ class InvoiceService {
                                   flex: 5,
                                   child: pw.Text(
                                     'Part: $part',
-                                    style: pw.TextStyle(font: regularFont, fontSize: 11),
+                                    style: pw.TextStyle(
+                                        font: regularFont, fontSize: 11),
                                   ),
                                 ),
                                 pw.Expanded(
@@ -373,7 +393,8 @@ class InvoiceService {
                                   child: pw.Text(
                                     'Included',
                                     textAlign: pw.TextAlign.right,
-                                    style: pw.TextStyle(font: regularFont, fontSize: 11),
+                                    style: pw.TextStyle(
+                                        font: regularFont, fontSize: 11),
                                   ),
                                 ),
                               ],
@@ -383,7 +404,7 @@ class InvoiceService {
                     ],
                   ),
                 ),
-                
+
                 // Summary
                 pw.Container(
                   padding: const pw.EdgeInsets.only(top: 10, right: 10),
@@ -394,12 +415,14 @@ class InvoiceService {
                         children: [
                           pw.Text(
                             'Subtotal:',
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                           pw.SizedBox(width: 50),
                           pw.Text(
                             currencyFormat.format(invoice.subtotal),
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                         ],
                       ),
@@ -409,12 +432,14 @@ class InvoiceService {
                         children: [
                           pw.Text(
                             'Tax (${(invoice.taxRate * 100).toStringAsFixed(0)}%):',
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                           pw.SizedBox(width: 50),
                           pw.Text(
                             currencyFormat.format(invoice.taxAmount),
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                         ],
                       ),
@@ -439,12 +464,14 @@ class InvoiceService {
                         children: [
                           pw.Text(
                             'Amount Paid:',
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                           pw.SizedBox(width: 50),
                           pw.Text(
                             currencyFormat.format(invoice.amountPaid),
-                            style: pw.TextStyle(font: regularFont, fontSize: 11),
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 11),
                           ),
                         ],
                       ),
@@ -474,16 +501,17 @@ class InvoiceService {
                     ],
                   ),
                 ),
-                
+
                 pw.SizedBox(height: 30),
-                
+
                 // Notes
                 if (invoice.notes != null)
                   pw.Container(
                     padding: const pw.EdgeInsets.all(10),
                     decoration: pw.BoxDecoration(
                       color: PdfColors.grey100,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                      borderRadius:
+                          const pw.BorderRadius.all(pw.Radius.circular(10)),
                     ),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -504,16 +532,17 @@ class InvoiceService {
                       ],
                     ),
                   ),
-                
+
                 pw.SizedBox(height: 20),
-                
+
                 // Terms and Conditions
                 if (invoice.termsAndConditions != null)
                   pw.Container(
                     padding: const pw.EdgeInsets.all(10),
                     decoration: pw.BoxDecoration(
                       color: PdfColors.grey100,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                      borderRadius:
+                          const pw.BorderRadius.all(pw.Radius.circular(10)),
                     ),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -534,9 +563,9 @@ class InvoiceService {
                       ],
                     ),
                   ),
-                
+
                 pw.Spacer(),
-                
+
                 // Footer
                 pw.Center(
                   child: pw.Text(
@@ -554,10 +583,10 @@ class InvoiceService {
         },
       ),
     );
-    
+
     return pdf.save();
   }
-  
+
   // Save PDF to file
   Future<File> savePdfToFile(Uint8List pdfBytes, String fileName) async {
     final directory = await getApplicationDocumentsDirectory();
@@ -565,14 +594,14 @@ class InvoiceService {
     await file.writeAsBytes(pdfBytes);
     return file;
   }
-  
+
   // Print PDF
   Future<void> printPdf(Uint8List pdfBytes) async {
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdfBytes,
     );
   }
-  
+
   // Share PDF
   Future<void> sharePdf(Uint8List pdfBytes, String fileName) async {
     final file = await savePdfToFile(pdfBytes, fileName);
