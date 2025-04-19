@@ -3,12 +3,13 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/firebase_auth_service.dart';
 import '../../../../core/services/firestore_service.dart';
 import '../../../../core/services/service_locator.dart';
+import '../../../../core/services/connectivity_mixin.dart';
 import '../../domain/entities/customer.dart';
 import '../models/customer_model.dart';
 import '../../../repair/data/repositories/repair_repository_impl.dart';
 import '../../../repair/domain/entities/repair_job.dart';
 
-class CustomerRepositoryImpl {
+class CustomerRepositoryImpl with ConnectivityAware {
   final FirestoreService _firestoreService = getService<FirestoreService>();
   final FirebaseAuthService _authService = getService<FirebaseAuthService>();
   final RepairRepositoryImpl _repairRepository =
@@ -20,29 +21,31 @@ class CustomerRepositoryImpl {
 
   // Get all customers for current shop
   Future<List<Customer>> getCustomers() async {
-    try {
-      final userId = _authService.currentUser?.uid;
-      if (userId == null) {
-        throw Exception('User not authenticated');
+    return executeWithConnectivity(() async {
+      try {
+        final userId = _authService.currentUser?.uid;
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+
+        final snapshot = await _firestoreService.queryCollection(
+          collectionPath: _customersCollection,
+          filters: [
+            ['shopId', userId],
+            ['isActive', true],
+          ],
+          orderBy: 'name',
+        );
+
+        return snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id; // Ensure ID is set
+          return CustomerModel.fromJson(data);
+        }).toList();
+      } catch (e) {
+        throw Exception('Failed to get customers: $e');
       }
-
-      final snapshot = await _firestoreService.queryCollection(
-        collectionPath: _customersCollection,
-        filters: [
-          ['shopId', userId],
-          ['isActive', true],
-        ],
-        orderBy: 'name',
-      );
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id; // Ensure ID is set
-        return CustomerModel.fromJson(data);
-      }).toList();
-    } catch (e) {
-      throw Exception('Failed to get customers: $e');
-    }
+    });
   }
 
   // Get customer by ID

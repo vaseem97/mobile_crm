@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'connectivity_mixin.dart';
 
-class FirebaseAuthService {
+class FirebaseAuthService with ConnectivityAware {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   // Current user stream
@@ -14,14 +15,16 @@ class FirebaseAuthService {
     required String email,
     required String password,
   }) async {
-    try {
-      return await _firebaseAuth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
+    return executeWithConnectivity(() async {
+      try {
+        return await _firebaseAuth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        throw _handleAuthException(e);
+      }
+    });
   }
 
   // Create a new account
@@ -29,39 +32,47 @@ class FirebaseAuthService {
     required String email,
     required String password,
   }) async {
-    try {
-      return await _firebaseAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
+    return executeWithConnectivity(() async {
+      try {
+        return await _firebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        throw _handleAuthException(e);
+      }
+    });
   }
 
   // Sign out
   Future<void> signOut() async {
-    await _firebaseAuth.signOut();
+    return executeWithConnectivity(() async {
+      await _firebaseAuth.signOut();
+    });
   }
 
   // Reset password
   Future<void> sendPasswordResetEmail({required String email}) async {
-    try {
-      await _firebaseAuth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
+    return executeWithConnectivity(() async {
+      try {
+        await _firebaseAuth.sendPasswordResetEmail(email: email);
+      } on FirebaseAuthException catch (e) {
+        throw _handleAuthException(e);
+      }
+    });
   }
 
   // Update user profile
   Future<void> updateUserProfile(
       {String? displayName, String? photoURL}) async {
-    try {
-      await _firebaseAuth.currentUser?.updateDisplayName(displayName);
-      await _firebaseAuth.currentUser?.updatePhotoURL(photoURL);
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
+    return executeWithConnectivity(() async {
+      try {
+        await _firebaseAuth.currentUser?.updateDisplayName(displayName);
+        await _firebaseAuth.currentUser?.updatePhotoURL(photoURL);
+      } on FirebaseAuthException catch (e) {
+        throw _handleAuthException(e);
+      }
+    });
   }
 
   // Handle Firebase Auth exceptions

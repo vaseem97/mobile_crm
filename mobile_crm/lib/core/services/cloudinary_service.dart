@@ -2,8 +2,9 @@ import 'dart:io';
 import 'package:cloudinary/cloudinary.dart';
 import 'package:flutter/foundation.dart';
 import '../constants/app_constants.dart';
+import 'connectivity_mixin.dart';
 
-class CloudinaryService {
+class CloudinaryService with ConnectivityAware {
   late final Cloudinary _cloudinary;
 
   // Singleton pattern
@@ -24,39 +25,45 @@ class CloudinaryService {
   /// Upload a single image to Cloudinary
   /// Returns the URL of the uploaded image
   Future<String> uploadImage(File imageFile) async {
-    try {
-      final response = await _cloudinary.upload(
-        file: imageFile.path,
-        folder: 'repair_images',
-        resourceType: CloudinaryResourceType.image,
-      );
+    return executeWithConnectivity(() async {
+      try {
+        final response = await _cloudinary.upload(
+          file: imageFile.path,
+          folder: 'repair_images',
+          resourceType: CloudinaryResourceType.image,
+        );
 
-      if (response.isSuccessful) {
-        return response.secureUrl ?? '';
-      } else {
-        throw Exception('Failed to upload image: ${response.error}');
+        if (response.isSuccessful) {
+          return response.secureUrl ?? '';
+        } else {
+          throw Exception('Failed to upload image: ${response.error}');
+        }
+      } catch (e) {
+        debugPrint('Error uploading to Cloudinary: $e');
+        throw Exception('Failed to upload image: $e');
       }
-    } catch (e) {
-      debugPrint('Error uploading to Cloudinary: $e');
-      throw Exception('Failed to upload image: $e');
-    }
+    });
   }
 
   /// Upload multiple images to Cloudinary
   /// Returns a list of URLs of the uploaded images
   Future<List<String>> uploadImages(List<File> imageFiles) async {
-    try {
-      final List<String> imageUrls = [];
+    return executeWithConnectivity(() async {
+      try {
+        final List<String> imageUrls = [];
 
-      for (final file in imageFiles) {
-        final url = await uploadImage(file);
-        imageUrls.add(url);
+        for (final file in imageFiles) {
+          // Note: We don't need to wrap the individual uploadImage call with connectivity check
+          // since it already has its own check, and we're already checking at this level
+          final url = await uploadImage(file);
+          imageUrls.add(url);
+        }
+
+        return imageUrls;
+      } catch (e) {
+        debugPrint('Error uploading multiple images: $e');
+        throw Exception('Failed to upload images: $e');
       }
-
-      return imageUrls;
-    } catch (e) {
-      debugPrint('Error uploading multiple images: $e');
-      throw Exception('Failed to upload images: $e');
-    }
+    });
   }
 }

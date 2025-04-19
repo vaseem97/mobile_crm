@@ -7,6 +7,7 @@ import '../../../../core/widgets/connectivity_banner.dart';
 import '../../../../core/services/connectivity_service.dart';
 import '../../data/repositories/customer_repository_impl.dart';
 import '../../domain/entities/customer.dart';
+import '../../../../core/utils/connectivity_utils.dart';
 
 class CustomerListPage extends StatefulWidget {
   const CustomerListPage({super.key});
@@ -55,12 +56,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading customers: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConnectivityUtils.handleConnectivityError(context, e);
       }
     }
   }
@@ -71,7 +67,9 @@ class _CustomerListPageState extends State<CustomerListPage> {
         _isExtracting = true;
       });
 
-      await _customerRepository.extractCustomersFromRepairs();
+      await _connectivityService.performWithConnectivity(
+        () => _customerRepository.extractCustomersFromRepairs(),
+      );
       await _loadCustomers();
 
       if (mounted) {
@@ -84,12 +82,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error extracting customers: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConnectivityUtils.handleConnectivityError(context, e);
       }
     } finally {
       setState(() {
@@ -105,7 +98,9 @@ class _CustomerListPageState extends State<CustomerListPage> {
         _searchQuery = query;
       });
 
-      final customers = await _customerRepository.searchCustomers(query);
+      final customers = await _connectivityService.performWithConnectivity(
+        () => _customerRepository.searchCustomers(query),
+      );
 
       setState(() {
         _customers = customers;
@@ -117,12 +112,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error searching customers: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConnectivityUtils.handleConnectivityError(context, e);
       }
     }
   }
@@ -139,14 +129,17 @@ class _CustomerListPageState extends State<CustomerListPage> {
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(hasConnection
-              ? 'Connected to the internet'
-              : 'No internet connection available'),
-          backgroundColor: hasConnection ? Colors.green : Colors.red,
-        ),
-      );
+      if (hasConnection) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connected to the internet'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ConnectivityUtils.showConnectivityError(
+            context, 'No internet connection available');
+      }
     }
   }
 
