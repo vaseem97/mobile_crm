@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -13,7 +15,6 @@ import '../../../../core/services/service_locator.dart';
 import '../../../../core/services/cloudinary_service.dart';
 import '../../data/repositories/repair_repository_impl.dart';
 import '../../domain/entities/repair_job.dart';
-import 'dart:math';
 
 class AddRepairPage extends StatefulWidget {
   const AddRepairPage({Key? key}) : super(key: key);
@@ -47,6 +48,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
 
   // Image picking
   List<File> _selectedImages = [];
+  List<double> _uploadProgress = [];
   bool _isUploadingImages = false;
 
   // Repair Info
@@ -61,6 +63,8 @@ class _AddRepairPageState extends State<AddRepairPage> {
 
   // Add these new methods for pattern drawing
   void _handlePatternStart(Offset position) {
+    HapticFeedback.mediumImpact();
+
     setState(() {
       _clearPattern(); // Clear existing pattern when starting a new one
       _isDragging = true;
@@ -83,33 +87,8 @@ class _AddRepairPageState extends State<AddRepairPage> {
     final row = (position.dy / cellSize).floor().clamp(0, 2);
     final col = (position.dx / cellSize).floor().clamp(0, 2);
 
-    // Check if this is a new dot that's not already in the pattern
-    final List<int> newDot = [row, col];
-    bool isDotAlreadySelected = _patternDots.any(
-      (dot) => dot[0] == row && dot[1] == col,
-    );
-
-    // Only add the dot if it's new
-    if (!isDotAlreadySelected) {
-      // If there are existing dots, check if we need to add dots in between
-      if (_patternDots.isNotEmpty) {
-        final lastDot = _patternDots.last;
-        final rowDiff = row - lastDot[0];
-        final colDiff = col - lastDot[1];
-
-        // First check for special connections like diagonal through center
-        if (_canConnectDots(lastDot[0], lastDot[1], row, col)) {
-          // Special connection handled by the helper method
-        }
-        // Then check if we need to add intermediate dots for other connections
-        else if (rowDiff.abs() > 1 || colDiff.abs() > 1) {
-          // Add intermediate dots for smoother pattern
-          _addIntermediateDots(lastDot[0], lastDot[1], row, col);
-        }
-      }
-
-      _addPatternDot(row, col);
-    }
+    // Directly try to add the dot under the finger
+    _addPatternDot(row, col);
   }
 
   void _handlePatternEnd() {
@@ -117,68 +96,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
       _isDragging = false;
       _isPatternActive = false;
     });
-  }
-
-  void _addIntermediateDots(
-      int startRow, int startCol, int endRow, int endCol) {
-    // Calculate the number of steps needed
-    final rowDiff = endRow - startRow;
-    final colDiff = endCol - startCol;
-    final steps = max(rowDiff.abs(), colDiff.abs());
-
-    // Add dots along the path
-    for (int i = 1; i < steps; i++) {
-      final ratio = i / steps;
-      // Use precise casting to ensure accurate intermediate positions
-      final intermediateRow = startRow + (rowDiff * ratio).round();
-      final intermediateCol = startCol + (colDiff * ratio).round();
-
-      // Ensure we're within grid bounds
-      if (intermediateRow >= 0 &&
-          intermediateRow <= 2 &&
-          intermediateCol >= 0 &&
-          intermediateCol <= 2) {
-        // Check if this dot is already selected
-        bool isDotAlreadySelected = _patternDots.any(
-          (dot) => dot[0] == intermediateRow && dot[1] == intermediateCol,
-        );
-
-        if (!isDotAlreadySelected) {
-          _addPatternDot(intermediateRow, intermediateCol);
-        }
-      }
-    }
-  }
-
-  // Simplified helper method to handle specific dot connections that might be missed
-  bool _canConnectDots(int startRow, int startCol, int endRow, int endCol) {
-    // Calculate the differences for L-shape detection
-    final int rowDiff = endRow - startRow;
-    final int colDiff = endCol - startCol;
-
-    // Common problematic connections like connecting 1→5→9 or 3→5→7
-    // Check for diagonal through center
-    if ((startRow == 0 && startCol == 0 && endRow == 2 && endCol == 2) || // 1→9
-        (startRow == 0 && startCol == 2 && endRow == 2 && endCol == 0) || // 3→7
-        (startRow == 2 && startCol == 0 && endRow == 0 && endCol == 2) || // 7→3
-        (startRow == 2 && startCol == 2 && endRow == 0 && endCol == 0)) {
-      // 9→1
-
-      // Add the center dot (5) if not already in the pattern
-      bool hasCenterDot = _patternDots.any((dot) => dot[0] == 1 && dot[1] == 1);
-      if (!hasCenterDot) {
-        _addPatternDot(1, 1); // Add center dot (row 1, col 1)
-      }
-      return true;
-    }
-
-    // Knight moves (L-shapes) - need to add intermediate dots
-    if ((rowDiff.abs() == 2 && colDiff.abs() == 1) ||
-        (rowDiff.abs() == 1 && colDiff.abs() == 2)) {
-      return true;
-    }
-
-    return false;
   }
 
   // Add _isDragging variable to the state
@@ -243,14 +160,51 @@ class _AddRepairPageState extends State<AddRepairPage> {
     final int dotIndex = row * 3 + col;
 
     setState(() {
-      // If this is the first dot, mark it as start
-      if (_patternDots.isEmpty) {
-        _startDot = dotIndex;
+      // Check if the dot is already the last dot
+      if (_patternDots.isNotEmpty &&
+          _patternDots.last[0] == row &&
+          _patternDots.last[1] == col) {
+        return; // Don't re-add the last dot
       }
 
-      _patternDots.add(dot);
-      _patternDescription.add('${_getPositionName(row, col)}');
-      _devicePasswordController.text = _patternDescription.join(' → ');
+      // Check if dot already exists in the pattern (and isn't the last dot)
+      bool alreadyExists = _patternDots.any((d) => d[0] == row && d[1] == col);
+
+      if (!alreadyExists) {
+        // Handle diagonal connection through center (e.g., 1 -> 9)
+        if (_patternDots.isNotEmpty) {
+          final lastDot = _patternDots.last;
+          final rowDiff = (row - lastDot[0]).abs();
+          final colDiff = (col - lastDot[1]).abs();
+
+          // If moving diagonally 2 steps (e.g., 0,0 to 2,2)
+          if (rowDiff == 2 && colDiff == 2) {
+            // Check if center dot (1,1) exists
+            bool centerDotExists =
+                _patternDots.any((d) => d[0] == 1 && d[1] == 1);
+            if (!centerDotExists) {
+              // Add center dot first
+              final List<int> centerDot = [1, 1];
+              _patternDots.add(centerDot);
+              _patternDescription.add('${_getPositionName(1, 1)}');
+              HapticFeedback
+                  .selectionClick(); // Feedback for the intermediate dot
+            }
+          }
+        }
+
+        // Add the actual dot
+        if (_patternDots.isEmpty) {
+          _startDot = dotIndex;
+        }
+        _patternDots.add(dot);
+        _patternDescription.add('${_getPositionName(row, col)}');
+        _devicePasswordController.text = _patternDescription.join(' → ');
+        HapticFeedback.selectionClick(); // Feedback for the main dot
+      } else {
+        // Optional: Provide feedback if trying to cross over an existing dot?
+        // HapticFeedback.heavyImpact(); // Example: Indicate invalid move
+      }
     });
   }
 
@@ -329,6 +283,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
         advanceAmount = double.parse(_advanceAmountController.text);
       }
 
+      // Create the repair job data object with the correct password/pattern fields
       final newRepairData = RepairJob(
         id: 'TEMP_ID',
         customerName: _customerNameController.text,
@@ -352,6 +307,13 @@ class _AddRepairPageState extends State<AddRepairPage> {
         warrantyPeriod: _selectedWarranty,
       );
 
+      // Log for debugging
+      print('Creating repair with:');
+      print('Password Type: $_passwordType');
+      print('Password Controller Text: ${_devicePasswordController.text}');
+      print('devicePassword field: ${newRepairData.devicePassword}');
+      print('devicePattern field: ${newRepairData.devicePattern}');
+
       // 2. Create document in Firestore
       tempRepairId = await _repairRepository.createRepairJob(newRepairData);
       print('Repair document created with ID: $tempRepairId');
@@ -360,6 +322,8 @@ class _AddRepairPageState extends State<AddRepairPage> {
       if (_selectedImages.isNotEmpty) {
         setState(() {
           _isUploadingImages = true;
+          // Initialize progress for each image
+          _uploadProgress = List.filled(_selectedImages.length, 0.0);
         });
 
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -371,9 +335,36 @@ class _AddRepairPageState extends State<AddRepairPage> {
           ),
         );
 
-        // Upload images to Cloudinary
-        final imageUrls =
-            await _cloudinaryService.uploadImages(_selectedImages);
+        // Compress images before uploading
+        List<File> compressedImages = [];
+        for (int i = 0; i < _selectedImages.length; i++) {
+          final File originalFile = _selectedImages[i];
+
+          // Update progress to show compression started
+          setState(() {
+            _uploadProgress[i] = 0.1; // 10% progress for starting compression
+          });
+
+          final compressedFile = await _compressImage(originalFile);
+          compressedImages.add(compressedFile);
+
+          // Update progress after compression
+          setState(() {
+            _uploadProgress[i] = 0.3; // 30% progress after compression
+          });
+        }
+
+        // Upload compressed images to Cloudinary with progress tracking
+        final imageUrls = await _cloudinaryService.uploadImagesWithProgress(
+          compressedImages,
+          (index, progress) {
+            // Update progress for specific image
+            setState(() {
+              // Scale progress from 30% to 100%
+              _uploadProgress[index] = 0.3 + (progress * 0.7);
+            });
+          },
+        );
 
         // Update repair document with image URLs
         await _repairRepository.updateRepairJobImageUrls(
@@ -421,6 +412,23 @@ class _AddRepairPageState extends State<AddRepairPage> {
         });
       }
     }
+  }
+
+  Future<File> _compressImage(File file) async {
+    final String targetPath = file.path.replaceAll(
+      RegExp(r'\.\w+$'), // Replace the extension
+      '_compressed.jpg',
+    );
+
+    final compressedFile = await FlutterImageCompress.compressAndGetFile(
+      file.path,
+      targetPath,
+      quality: 85, // Adjust quality as needed
+      minWidth: 1000,
+      minHeight: 1000,
+    );
+
+    return File(compressedFile!.path);
   }
 
   void _scanCustomerQR() {
@@ -586,7 +594,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
   }
 
   void _showPatternDialog() async {
-    // Temporarily store the current pattern in case the user cancels
     final initialPatternDots =
         List<List<int>>.from(_patternDots.map((dot) => List<int>.from(dot)));
     final initialPatternDescription = List<String>.from(_patternDescription);
@@ -594,16 +601,15 @@ class _AddRepairPageState extends State<AddRepairPage> {
 
     final result = await showDialog<String>(
       context: context,
-      barrierDismissible: false, // Prevent closing by tapping outside
+      barrierDismissible: false,
       builder: (context) {
-        // Local state management for the dialog
         List<List<int>> currentDots = List<List<int>>.from(
             initialPatternDots.map((dot) => List<int>.from(dot)));
         List<String> currentDescription =
             List<String>.from(initialPatternDescription);
         bool isDialogDragging = false;
+        int? dialogStartDot = _startDot; // Keep track of start dot in dialog
 
-        // Helper functions specific to the dialog's state
         String getPositionNameDialog(int row, int col) {
           final positions = [
             ['Top-Left', 'Top-Center', 'Top-Right'],
@@ -613,11 +619,48 @@ class _AddRepairPageState extends State<AddRepairPage> {
           return positions[row][col];
         }
 
+        // Updated: Simplified dot adding logic for dialog
         void addPatternDotDialog(
             int row, int col, Function(Function()) setStateDialog) {
+          final List<int> dot = [row, col];
+          final int dotIndex = row * 3 + col;
+
           setStateDialog(() {
-            currentDots.add([row, col]);
-            currentDescription.add(getPositionNameDialog(row, col));
+            if (currentDots.isNotEmpty &&
+                currentDots.last[0] == row &&
+                currentDots.last[1] == col) {
+              return;
+            }
+
+            bool alreadyExists =
+                currentDots.any((d) => d[0] == row && d[1] == col);
+
+            if (!alreadyExists) {
+              // Handle diagonal connection through center
+              if (currentDots.isNotEmpty) {
+                final lastDot = currentDots.last;
+                final rowDiff = (row - lastDot[0]).abs();
+                final colDiff = (col - lastDot[1]).abs();
+
+                if (rowDiff == 2 && colDiff == 2) {
+                  bool centerDotExists =
+                      currentDots.any((d) => d[0] == 1 && d[1] == 1);
+                  if (!centerDotExists) {
+                    final List<int> centerDot = [1, 1];
+                    currentDots.add(centerDot);
+                    currentDescription.add(getPositionNameDialog(1, 1));
+                    HapticFeedback.selectionClick();
+                  }
+                }
+              }
+
+              if (currentDots.isEmpty) {
+                dialogStartDot = dotIndex;
+              }
+              currentDots.add(dot);
+              currentDescription.add(getPositionNameDialog(row, col));
+              HapticFeedback.selectionClick();
+            }
           });
         }
 
@@ -625,60 +668,11 @@ class _AddRepairPageState extends State<AddRepairPage> {
           setStateDialog(() {
             currentDots = [];
             currentDescription = [];
+            dialogStartDot = null;
           });
         }
 
-        // Intermediate dot logic specifically for the dialog
-        void addIntermediateDotsDialog(int startRow, int startCol, int endRow,
-            int endCol, Function(Function()) setStateDialog) {
-          final rowDiff = endRow - startRow;
-          final colDiff = endCol - startCol;
-          final steps = max(rowDiff.abs(), colDiff.abs());
-
-          for (int i = 1; i < steps; i++) {
-            final ratio = i / steps;
-            final intermediateRow = (startRow + (rowDiff * ratio)).round();
-            final intermediateCol = (startCol + (colDiff * ratio)).round();
-
-            if (intermediateRow >= 0 &&
-                intermediateRow <= 2 &&
-                intermediateCol >= 0 &&
-                intermediateCol <= 2) {
-              bool isDotAlreadySelected = currentDots.any((dot) =>
-                  dot[0] == intermediateRow && dot[1] == intermediateCol);
-              if (!isDotAlreadySelected) {
-                // Special check for diagonals passing *through* center
-                if (rowDiff.abs() == 2 &&
-                    colDiff.abs() == 2 &&
-                    intermediateRow == 1 &&
-                    intermediateCol == 1) {
-                  addPatternDotDialog(
-                      intermediateRow, intermediateCol, setStateDialog);
-                }
-                // Check for standard intermediate dots (not just diagonal center)
-                else if ((rowDiff.abs() > 0 || colDiff.abs() > 0) &&
-                    !(rowDiff.abs() == 2 && colDiff.abs() == 2)) {
-                  addPatternDotDialog(
-                      intermediateRow, intermediateCol, setStateDialog);
-                }
-              }
-            }
-          }
-        }
-
-        // Handle gesture updates within the dialog
-        void handlePatternStartDialog(
-            Offset position, Function(Function()) setStateDialog) {
-          setStateDialog(() {
-            clearPatternDialog(setStateDialog);
-            isDialogDragging = true;
-            final cellSize = 240.0 / 3;
-            final row = (position.dy / cellSize).floor().clamp(0, 2);
-            final col = (position.dx / cellSize).floor().clamp(0, 2);
-            addPatternDotDialog(row, col, setStateDialog);
-          });
-        }
-
+        // Updated: Simplified pattern update for dialog
         void handlePatternUpdateDialog(
             Offset position, Function(Function()) setStateDialog) {
           if (!isDialogDragging) return;
@@ -687,17 +681,20 @@ class _AddRepairPageState extends State<AddRepairPage> {
           final row = (position.dy / cellSize).floor().clamp(0, 2);
           final col = (position.dx / cellSize).floor().clamp(0, 2);
 
-          bool isDotAlreadySelected =
-              currentDots.any((dot) => dot[0] == row && dot[1] == col);
+          addPatternDotDialog(row, col, setStateDialog);
+        }
 
-          if (!isDotAlreadySelected) {
-            if (currentDots.isNotEmpty) {
-              final lastDot = currentDots.last;
-              addIntermediateDotsDialog(
-                  lastDot[0], lastDot[1], row, col, setStateDialog);
-            }
+        void handlePatternStartDialog(
+            Offset position, Function(Function()) setStateDialog) {
+          HapticFeedback.mediumImpact();
+          setStateDialog(() {
+            clearPatternDialog(setStateDialog);
+            isDialogDragging = true;
+            final cellSize = 240.0 / 3;
+            final row = (position.dy / cellSize).floor().clamp(0, 2);
+            final col = (position.dx / cellSize).floor().clamp(0, 2);
             addPatternDotDialog(row, col, setStateDialog);
-          }
+          });
         }
 
         void handlePatternEndDialog(Function(Function()) setStateDialog) {
@@ -712,7 +709,6 @@ class _AddRepairPageState extends State<AddRepairPage> {
               title: const Text('Draw Device Pattern'),
               contentPadding: const EdgeInsets.all(16),
               content: SingleChildScrollView(
-                // Prevents overflow if content is large
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -732,8 +728,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
                       width: 240,
                       height: 240,
                       child: GestureDetector(
-                        behavior: HitTestBehavior
-                            .opaque, // Important for accurate hit testing
+                        behavior: HitTestBehavior.opaque,
                         onPanStart: (details) => handlePatternStartDialog(
                             details.localPosition, setStateDialog),
                         onPanUpdate: (details) => handlePatternUpdateDialog(
@@ -741,33 +736,30 @@ class _AddRepairPageState extends State<AddRepairPage> {
                         onPanEnd: (_) => handlePatternEndDialog(setStateDialog),
                         child: Stack(
                           children: [
-                            // Pattern line
                             if (currentDots.length > 1)
                               CustomPaint(
                                 size: const Size(240, 240),
-                                painter: PatternLinePainter(currentDots),
+                                painter: PatternLinePainter(
+                                    currentDots), // Uses the existing painter
                               ),
-                            // Dots grid
                             GridView.builder(
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                              ),
+                                      crossAxisCount: 3),
                               itemCount: 9,
                               itemBuilder: (context, index) {
                                 final row = index ~/ 3;
                                 final col = index % 3;
                                 final isDotSelected = currentDots.any(
                                     (dot) => dot[0] == row && dot[1] == col);
-                                final isStartDot = currentDots.isNotEmpty &&
-                                    currentDots.first[0] == row &&
-                                    currentDots.first[1] == col;
-                                final isEndDot = currentDots.isNotEmpty &&
-                                    currentDots.last[0] == row &&
-                                    currentDots.last[1] == col;
-                                final dotIndex = currentDots.indexWhere(
-                                    (dot) => dot[0] == row && dot[1] == col);
+                                final isStartDot = dialogStartDot ==
+                                    index; // Check against dialogStartDot
+                                final dotIndexInPattern =
+                                    currentDots.indexWhere((dot) =>
+                                        dot[0] == row && dot[1] == col);
+                                final isEndDot = dotIndexInPattern != -1 &&
+                                    dotIndexInPattern == currentDots.length - 1;
 
                                 return Center(
                                   child: Container(
@@ -791,14 +783,15 @@ class _AddRepairPageState extends State<AddRepairPage> {
                                               style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.bold))
-                                          : isEndDot
+                                          : isEndDot && currentDots.length > 1
                                               ? const Text('E',
                                                   style: TextStyle(
                                                       color: Colors.white,
                                                       fontWeight:
                                                           FontWeight.bold))
                                               : isDotSelected
-                                                  ? Text('${dotIndex + 1}',
+                                                  ? Text(
+                                                      '${dotIndexInPattern + 1}',
                                                       style: const TextStyle(
                                                           color: Colors.white,
                                                           fontWeight:
@@ -826,13 +819,12 @@ class _AddRepairPageState extends State<AddRepairPage> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: currentDots.length >= 4 // Require at least 4 dots
+                  onPressed: currentDots.length >= 4
                       ? () {
-                          // Return the pattern description string
                           Navigator.pop(
                               context, currentDescription.join(' → '));
                         }
-                      : null, // Disable if pattern is too short
+                      : null,
                   child: const Text('Save Pattern'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -846,22 +838,36 @@ class _AddRepairPageState extends State<AddRepairPage> {
       },
     );
 
-    // Update the main page state if a pattern was saved
     if (result != null) {
       setState(() {
         _devicePasswordController.text = result;
-        // Update the main state's pattern dots/description for consistency
-        // (though they are mainly managed visually by the dialog now)
         _patternDescription = result.split(' → ');
-        // Potentially reconstruct _patternDots from result if needed elsewhere
+        // Reconstruct _patternDots and _startDot based on the saved description for consistency
+        _patternDots = [];
+        _startDot = null;
+        final positionsMap = {
+          'Top-Left': [0, 0],
+          'Top-Center': [0, 1],
+          'Top-Right': [0, 2],
+          'Middle-Left': [1, 0],
+          'Center': [1, 1],
+          'Middle-Right': [1, 2],
+          'Bottom-Left': [2, 0],
+          'Bottom-Center': [2, 1],
+          'Bottom-Right': [2, 2],
+        };
+        for (final positionName in _patternDescription) {
+          final dotCoords = positionsMap[positionName];
+          if (dotCoords != null) {
+            _patternDots.add(dotCoords);
+            if (_startDot == null) {
+              _startDot = dotCoords[0] * 3 + dotCoords[1];
+            }
+          }
+        }
       });
     } else {
-      // User cancelled, revert to the initial state if needed (optional)
-      // setState(() {
-      //   _patternDots = initialPatternDots;
-      //   _patternDescription = initialPatternDescription;
-      //   _devicePasswordController.text = initialDevicePasswordText;
-      // });
+      // Optional: Revert if needed, but usually not necessary if dialog handles state locally
     }
   }
 
@@ -1109,6 +1115,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
           hint: 'Enter device model (e.g. iPhone 13 Pro)',
           controller: _deviceModelController,
           prefixIcon: const Icon(Icons.smartphone),
+          textCapitalization: TextCapitalization.words,
           isRequired: true,
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -1266,9 +1273,15 @@ class _AddRepairPageState extends State<AddRepairPage> {
           onImagesSelected: (images) {
             setState(() {
               _selectedImages = images;
+              // Reset progress when new images are selected
+              _uploadProgress = List.filled(images.length, 0.0);
             });
           },
         ),
+
+        // Show upload progress
+        _buildImageUploadProgress(),
+
         const SizedBox(height: 16),
 
         Row(
@@ -1487,6 +1500,47 @@ class _AddRepairPageState extends State<AddRepairPage> {
     );
   }
 
+  Widget _buildImageUploadProgress() {
+    if (!_isUploadingImages || _uploadProgress.isEmpty)
+      return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          'Uploading Images:',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...List.generate(_uploadProgress.length, (index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              children: [
+                Text('Image ${index + 1}:'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: _uploadProgress[index],
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('${(_uploadProgress[index] * 100).toInt()}%'),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   String _getStatusText(RepairStatus status) {
     switch (status) {
       case RepairStatus.pending:
@@ -1519,7 +1573,9 @@ class PatternLinePainter extends CustomPainter {
     final paint = Paint()
       ..color = AppColors.primary.withOpacity(0.6)
       ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round // Round caps for smoother lines
+      ..isAntiAlias = true; // Enable anti-aliasing for smoother lines
 
     final path = Path();
 
@@ -1543,6 +1599,25 @@ class PatternLinePainter extends CustomPainter {
     }
 
     canvas.drawPath(path, paint);
+
+    // Draw dots with a shadow effect for better visibility
+    final dotPaint = Paint()
+      ..color = AppColors.primary
+      ..style = PaintingStyle.fill;
+
+    final shadowPaint = Paint()
+      ..color = Colors.black26
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+
+    for (final dot in dots) {
+      final x = (dot[1] * cellWidth) + (cellWidth / 2);
+      final y = (dot[0] * cellHeight) + (cellHeight / 2);
+
+      // Draw shadow
+      canvas.drawCircle(Offset(x, y), 10, shadowPaint);
+      // Draw dot
+      canvas.drawCircle(Offset(x, y), 8, dotPaint);
+    }
   }
 
   @override

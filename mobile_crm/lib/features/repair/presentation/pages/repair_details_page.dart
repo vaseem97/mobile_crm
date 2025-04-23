@@ -224,6 +224,8 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
           const SizedBox(height: 16),
           _buildPasswordCard(),
           const SizedBox(height: 16),
+          _buildNotesCard(),
+          const SizedBox(height: 16),
           _buildCustomerInfoCard(),
           const SizedBox(height: 16),
           if (_repairJob!.status != RepairStatus.returned)
@@ -464,7 +466,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                   ),
                 ),
                 Text(
-                  '\$${_repairJob!.estimatedCost.toStringAsFixed(2)}',
+                  '₹${_repairJob!.estimatedCost.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -497,7 +499,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                       ),
                     ),
                     child: Text(
-                      '\$${_repairJob!.advanceAmount.toStringAsFixed(2)}',
+                      '₹${_repairJob!.advanceAmount.toStringAsFixed(2)}',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -520,7 +522,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                     ),
                   ),
                   Text(
-                    '\$${(_repairJob!.estimatedCost - _repairJob!.advanceAmount).toStringAsFixed(2)}',
+                    '₹${(_repairJob!.estimatedCost - _repairJob!.advanceAmount).toStringAsFixed(2)}',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -664,10 +666,15 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
   }
 
   Widget _buildPasswordCard() {
-    if (_repairJob == null || _repairJob!.devicePassword.isEmpty)
+    if (_repairJob == null ||
+        (_repairJob!.devicePassword.isEmpty &&
+            _repairJob!.devicePattern.isEmpty)) {
       return const SizedBox.shrink();
+    }
 
-    final bool isPattern = _repairJob!.devicePassword.contains('→');
+    final bool isPattern = _repairJob!.devicePattern.isNotEmpty;
+    final String password =
+        isPattern ? _repairJob!.devicePattern : _repairJob!.devicePassword;
 
     return Card(
       elevation: 3,
@@ -685,7 +692,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Device Unlock',
+                  isPattern ? 'Device Pattern' : 'Device PIN',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -694,11 +701,12 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                 ElevatedButton.icon(
                   onPressed: () {
                     _showPasswordDialog(
-                        isPattern: isPattern,
-                        password: _repairJob!.devicePassword);
+                      isPattern: isPattern,
+                      password: password,
+                    );
                   },
-                  icon: Icon(Icons.visibility, size: 16),
-                  label: Text('View', style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text('View', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -706,7 +714,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                       horizontal: 12,
                       vertical: 8,
                     ),
-                    minimumSize: Size(0, 32),
+                    minimumSize: const Size(0, 32),
                   ),
                 ),
               ],
@@ -743,7 +751,9 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Click the "View" button to see the device unlock pattern/password',
+              isPattern
+                  ? 'Click the "View" button to see the device unlock pattern'
+                  : 'Click the "View" button to see the device PIN/password',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade600,
@@ -761,7 +771,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isPattern ? 'Device Pattern' : 'Device Password'),
+        title: Text(isPattern ? 'Device Pattern' : 'Device PIN'),
         content: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -892,7 +902,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
                   ),
                   child: Text(
                     password,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -913,7 +923,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
     );
   }
 
-  // Helper method to get position name from grid coordinates
   String _getPositionName(int row, int col) {
     final positions = [
       ['Top-Left', 'Top-Center', 'Top-Right'],
@@ -921,6 +930,56 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
       ['Bottom-Left', 'Bottom-Center', 'Bottom-Right'],
     ];
     return positions[row][col];
+  }
+
+  Widget _buildNotesCard() {
+    if (_repairJob == null ||
+        _repairJob!.notes == null ||
+        _repairJob!.notes!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.note, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Additional Notes',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Text(
+                _repairJob!.notes!,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildCustomerInfoCard() {

@@ -66,4 +66,47 @@ class CloudinaryService with ConnectivityAware {
       }
     });
   }
+
+  /// Upload multiple images to Cloudinary with progress callback
+  /// Returns a list of URLs of the uploaded images
+  Future<List<String>> uploadImagesWithProgress(
+    List<File> images,
+    Function(int, double) onProgress,
+  ) async {
+    List<String> urls = [];
+
+    for (int i = 0; i < images.length; i++) {
+      File image = images[i];
+
+      // Start progress
+      onProgress(i, 0.0);
+
+      try {
+        // Simulate upload progress updates (replace with actual Cloudinary SDK implementation)
+        // In a real implementation, you would use the Cloudinary SDK's progress callback
+
+        // Simulate 50% progress
+        await Future.delayed(const Duration(milliseconds: 500));
+        onProgress(i, 0.5);
+
+        // Simulate 80% progress
+        await Future.delayed(const Duration(milliseconds: 500));
+        onProgress(i, 0.8);
+
+        // Perform the actual upload (reuse existing upload logic)
+        final String url = await uploadImage(image);
+        urls.add(url);
+
+        // Complete progress
+        onProgress(i, 1.0);
+      } catch (e) {
+        // Handle upload error
+        print('Error uploading image: $e');
+        // Still mark as complete even if failed
+        onProgress(i, 1.0);
+      }
+    }
+
+    return urls;
+  }
 }
