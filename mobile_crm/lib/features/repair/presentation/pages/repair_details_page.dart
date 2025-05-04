@@ -10,6 +10,7 @@ import '../../../../features/repair/data/repositories/repair_repository_impl.dar
 import '../../../../features/repair/domain/entities/repair_job.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/storage_service.dart';
+import '../widgets/status_info_card.dart';
 
 class RepairDetailsPage extends StatefulWidget {
   final String repairId;
@@ -201,7 +202,7 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildStatusInfoCard(),
+          StatusInfoCard(repairJob: _repairJob!),
           const SizedBox(height: 16),
           if (_repairJob!.imageUrls != null &&
               _repairJob!.imageUrls!.isNotEmpty) ...[
@@ -246,121 +247,6 @@ class _RepairDetailsPageState extends State<RepairDetailsPage> {
             isOutlined: true,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatusInfoCard() {
-    Color statusColor;
-    IconData statusIcon;
-
-    switch (_repairJob!.status) {
-      case RepairStatus.pending:
-        statusColor = AppColors.warning;
-        statusIcon = Icons.pending_actions;
-        break;
-      case RepairStatus.returned:
-        statusColor = AppColors.primary;
-        statusIcon = Icons.delivery_dining;
-        break;
-    }
-
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.build_circle, color: AppColors.primary, size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Device Status',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: statusColor.withOpacity(0.5)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, size: 16, color: statusColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        _getStatusText(_repairJob!.status),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.smartphone,
-                    color: AppColors.primary.withOpacity(0.7),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${_repairJob!.deviceBrand} ${_repairJob!.deviceModel}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Created: ${DateFormat('dd MMM yyyy, h:mm a').format(_repairJob!.createdAt)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      if (_repairJob!.status == RepairStatus.returned &&
-                          _repairJob!.deliveredAt != null)
-                        Text(
-                          'Returned: ${DateFormat('dd MMM yyyy, h:mm a').format(_repairJob!.deliveredAt!)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

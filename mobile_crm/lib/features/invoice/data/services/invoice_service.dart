@@ -12,10 +12,53 @@ import '../../../../core/services/service_locator.dart';
 import '../../../repair/domain/entities/repair_job.dart';
 import '../../domain/entities/invoice.dart';
 
+// Class to hold shop information validation result
+class ShopInfoValidationResult {
+  final bool isValid;
+  final List<String> missingFields;
+  final Map<String, String?> shopInfo;
+
+  ShopInfoValidationResult({
+    required this.isValid,
+    required this.missingFields,
+    required this.shopInfo,
+  });
+}
+
 class InvoiceService {
   final FirebaseAuthService _authService = getService<FirebaseAuthService>();
   final FirestoreService _firestoreService = getService<FirestoreService>();
   final _uuid = const Uuid();
+
+  // Validate shop information before generating invoice
+  Future<ShopInfoValidationResult> validateShopInfo() async {
+    final shopInfo = await _getShopInfo();
+    final missingFields = <String>[];
+
+    // Check required fields
+    if (shopInfo['shopName'] == null ||
+        shopInfo['shopName'] == 'Mobile Repair Shop') {
+      missingFields.add('Shop Name');
+    }
+    if (shopInfo['shopAddress'] == null ||
+        shopInfo['shopAddress'] == 'Shop Address') {
+      missingFields.add('Shop Address');
+    }
+    if (shopInfo['shopPhone'] == null ||
+        shopInfo['shopPhone'] == 'Shop Phone') {
+      missingFields.add('Shop Phone');
+    }
+    if (shopInfo['shopEmail'] == null ||
+        shopInfo['shopEmail'] == 'shop@email.com') {
+      missingFields.add('Shop Email');
+    }
+
+    return ShopInfoValidationResult(
+      isValid: missingFields.isEmpty,
+      missingFields: missingFields,
+      shopInfo: shopInfo,
+    );
+  }
 
   // Generate a new invoice for a repair job
   Future<Invoice> generateInvoice(RepairJob repairJob) async {
@@ -55,6 +98,7 @@ class InvoiceService {
       shopPhone: shopInfo['shopPhone'],
       shopEmail: shopInfo['shopEmail'],
       shopLogo: shopInfo['shopLogo'],
+      shopGstNumber: shopInfo['gstNumber'],
     );
   }
 
@@ -77,6 +121,7 @@ class InvoiceService {
         'shopPhone': 'Shop Phone',
         'shopEmail': 'shop@email.com',
         'shopLogo': null,
+        'gstNumber': null,
       };
     }
 
@@ -84,10 +129,11 @@ class InvoiceService {
 
     return {
       'shopName': data['shopName'] as String? ?? 'Mobile Repair Shop',
-      'shopAddress': data['shopAddress'] as String? ?? 'Shop Address',
+      'shopAddress': data['address'] as String? ?? 'Shop Address',
       'shopPhone': data['phone'] as String? ?? 'Shop Phone',
       'shopEmail': data['email'] as String? ?? 'shop@email.com',
       'shopLogo': data['shopLogo'] as String?,
+      'gstNumber': data['gstNumber'] as String?,
     };
   }
 
@@ -148,6 +194,13 @@ class InvoiceService {
                         if (invoice.shopEmail != null)
                           pw.Text(
                             'Email: ${invoice.shopEmail}',
+                            style:
+                                pw.TextStyle(font: regularFont, fontSize: 10),
+                          ),
+                        if (invoice.shopGstNumber != null &&
+                            invoice.shopGstNumber!.isNotEmpty)
+                          pw.Text(
+                            'GST No: ${invoice.shopGstNumber}',
                             style:
                                 pw.TextStyle(font: regularFont, fontSize: 10),
                           ),
@@ -431,7 +484,10 @@ class InvoiceService {
                         mainAxisAlignment: pw.MainAxisAlignment.end,
                         children: [
                           pw.Text(
-                            'Tax (${(invoice.taxRate * 100).toStringAsFixed(0)}%):',
+                            invoice.shopGstNumber != null &&
+                                    invoice.shopGstNumber!.isNotEmpty
+                                ? 'GST (${(invoice.taxRate * 100).toStringAsFixed(0)}%) - ${invoice.shopGstNumber}:'
+                                : 'Tax (${(invoice.taxRate * 100).toStringAsFixed(0)}%):',
                             style:
                                 pw.TextStyle(font: regularFont, fontSize: 11),
                           ),

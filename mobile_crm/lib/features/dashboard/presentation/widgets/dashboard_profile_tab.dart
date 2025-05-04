@@ -278,12 +278,17 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
   Widget _buildShopInfoSection(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final shopName = _userData?['shopName'] ?? 'Your Shop';
-    final gstNumber = _userData?['gstNumber'] ?? 'Add your GST Number';
-    final address = _userData?['address'] ?? 'Add your shop address';
+    final address = _userData?['address'] ?? 'Not provided';
+    final gstNumber = _userData?['gstNumber'] ?? 'Not provided';
+
+    // Check if any shop information is missing
+    final isMissingInfo = shopName == 'Your Shop' || address == 'Not provided';
 
     return Card(
       elevation: 0,
-      color: colorScheme.surfaceVariant.withOpacity(0.3),
+      color: isMissingInfo
+          ? colorScheme.errorContainer.withOpacity(0.3)
+          : colorScheme.primaryContainer.withOpacity(0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
@@ -296,7 +301,8 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
               children: [
                 Icon(
                   Icons.store_rounded,
-                  color: colorScheme.primary,
+                  color:
+                      isMissingInfo ? colorScheme.error : colorScheme.primary,
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -306,6 +312,31 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
                         color: colorScheme.onSurfaceVariant,
                       ),
                 ),
+                if (isMissingInfo) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colorScheme.error.withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      'Required for Invoice',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 InkWell(
                   onTap: () {
@@ -317,7 +348,9 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
                     child: Icon(
                       Icons.edit_rounded,
                       size: 20,
-                      color: colorScheme.primary,
+                      color: isMissingInfo
+                          ? colorScheme.error
+                          : colorScheme.primary,
                     ),
                   ),
                 ),
@@ -329,39 +362,59 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
             context,
             'Shop Name',
             shopName,
-            Icons.store_mall_directory_rounded,
+            Icons.store_rounded,
+            iconColor: colorScheme.primary.withOpacity(0.8),
+            valueColor: colorScheme.onPrimaryContainer,
+            isError: shopName == 'Your Shop',
           ),
           _buildInfoItem(
             context,
-            'Shop Address',
+            'Address',
             address,
             Icons.location_on_rounded,
+            iconColor: colorScheme.primary.withOpacity(0.8),
+            valueColor: colorScheme.onPrimaryContainer,
+            isError: address == 'Not provided',
           ),
           _buildInfoItem(
             context,
             'GST Number',
             gstNumber,
             Icons.receipt_long_rounded,
-            isLast: true,
-            suffix: gstNumber != 'Add your GST Number'
-                ? Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.tertiaryContainer.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
+            iconColor: colorScheme.primary.withOpacity(0.8),
+            valueColor: colorScheme.onPrimaryContainer,
+          ),
+          // Add a help text at the bottom
+          if (isMissingInfo)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.errorContainer.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 20,
+                      color: colorScheme.onErrorContainer,
                     ),
-                    child: Text(
-                      'Verified',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: colorScheme.onTertiaryContainer,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Complete your shop information to generate professional invoices',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onErrorContainer,
+                        ),
                       ),
                     ),
-                  )
-                : null,
-          ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -500,66 +553,97 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
     Color? iconColor,
     Color? valueColor,
     Widget? suffix,
+    bool isError = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    final effectiveIconColor =
-        iconColor ?? colorScheme.primary.withOpacity(0.8);
-    final effectiveValueColor = valueColor ?? colorScheme.onSurfaceVariant;
+    final isDummy = value == 'Not provided' || value == 'Your Shop';
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: effectiveIconColor,
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: (isError || isDummy)
+                      ? colorScheme.errorContainer.withOpacity(0.5)
+                      : colorScheme.primaryContainer.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: (isError || isDummy)
+                      ? colorScheme.error
+                      : (iconColor ?? colorScheme.primary),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      label,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.7),
-                          ),
-                    ),
-                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            value,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: effectiveValueColor,
-                                ),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        if (suffix != null) suffix,
+                        if (isError || isDummy) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.error.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: colorScheme.error.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              'Required',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            isDummy ? FontWeight.normal : FontWeight.w500,
+                        color: isDummy
+                            ? colorScheme.error.withOpacity(0.7)
+                            : (valueColor ?? colorScheme.onSurface),
+                        fontStyle:
+                            isDummy ? FontStyle.italic : FontStyle.normal,
+                      ),
                     ),
                   ],
                 ),
               ),
+              if (suffix != null) suffix,
             ],
           ),
         ),
-        if (!isLast)
-          Divider(
-              height: 1,
-              indent: 56,
-              color: colorScheme.outlineVariant.withOpacity(0.5)),
+        if (!isLast) const Divider(height: 1),
       ],
     );
   }
@@ -829,146 +913,297 @@ class _DashboardProfileTabState extends State<DashboardProfileTab> {
       text: _userData?['gstNumber'] ?? '',
     );
 
+    // Helper to check if required fields are filled
+    bool areRequiredFieldsFilled() {
+      return shopNameController.text.trim().isNotEmpty &&
+          addressController.text.trim().isNotEmpty;
+    }
+
+    // Track if the required fields are filled
+    bool isFormValid = areRequiredFieldsFilled();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.store_rounded, color: colorScheme.primary),
-            const SizedBox(width: 12),
-            Text(
-              'Update Shop Information',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
+        return AlertDialog(
+          title: Row(
             children: [
-              TextField(
-                controller: shopNameController,
-                decoration: InputDecoration(
-                  labelText: 'Shop Name',
-                  hintText: 'Name of your shop',
-                  prefixIcon: Icon(Icons.store, color: colorScheme.primary),
-                ),
+              Icon(
+                Icons.store_rounded,
+                color: colorScheme.primary,
+                size: 24,
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: addressController,
-                decoration: InputDecoration(
-                  labelText: 'Shop Address',
-                  hintText: 'Complete address of your shop',
-                  prefixIcon:
-                      Icon(Icons.location_on, color: colorScheme.primary),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: gstController,
-                decoration: InputDecoration(
-                  labelText: 'GST Number',
-                  hintText: 'Your shop GST registration number',
-                  prefixIcon:
-                      Icon(Icons.receipt_long, color: colorScheme.primary),
+              const SizedBox(width: 10),
+              Text(
+                'Shop Information',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: colorScheme.primary,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Info text
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 20,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Shop information is used to personalize your invoices',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Shop Name Field
+                Text(
+                  'Shop Name *',
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: shopNameController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your shop name',
+                    prefixIcon: Icon(
+                      Icons.store_rounded,
+                      color: colorScheme.primary.withOpacity(0.7),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isFormValid = areRequiredFieldsFilled();
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Address Field
+                Text(
+                  'Shop Address *',
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: addressController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your shop address',
+                    prefixIcon: Icon(
+                      Icons.location_on_rounded,
+                      color: colorScheme.primary.withOpacity(0.7),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
+                  maxLines: 2,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isFormValid = areRequiredFieldsFilled();
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // GST Number Field
+                Row(
+                  children: [
+                    Text(
+                      'GST Number',
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.tertiaryContainer.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Optional',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onTertiaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: gstController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your GST number (optional)',
+                    prefixIcon: Icon(
+                      Icons.receipt_long_rounded,
+                      color: colorScheme.primary.withOpacity(0.7),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Required fields note
+                Text(
+                  '* Required fields for invoice generation',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: colorScheme.primary,
+                ),
               ),
             ),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
+            FilledButton(
+              onPressed: isFormValid
+                  ? () async {
+                      Navigator.of(context).pop();
 
-              setState(() {
-                _isUpdating = true;
-                _errorMessage = null;
-              });
+                      setState(() {
+                        _isUpdating = true;
+                        _errorMessage = null;
+                      });
 
-              try {
-                final uid = _authService.currentUser!.uid;
+                      try {
+                        final uid = _authService.currentUser!.uid;
 
-                final updatedData = {
-                  'shopName': shopNameController.text.trim(),
-                  'address': addressController.text.trim(),
-                  'gstNumber': gstController.text.trim(),
-                  'updatedAt': DateTime.now().toIso8601String(),
-                };
+                        final updatedData = {
+                          'shopName': shopNameController.text.trim(),
+                          'address': addressController.text.trim(),
+                          'gstNumber': gstController.text.trim(),
+                          'updatedAt': DateTime.now().toIso8601String(),
+                        };
 
-                await _firestoreService.updateDocument(
-                  collectionPath: 'users',
-                  documentId: uid,
-                  data: updatedData,
-                );
+                        await _firestoreService.updateDocument(
+                          collectionPath: 'users',
+                          documentId: uid,
+                          data: updatedData,
+                        );
 
-                await _loadUserData();
+                        await _loadUserData();
 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          const Text('Shop information updated successfully'),
-                      backgroundColor: colorScheme.primary,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                }
-              } catch (e) {
-                print('Error updating shop info: $e');
-                _errorMessage = 'Error updating information: $e';
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                  'Shop information updated successfully'),
+                              backgroundColor: colorScheme.primary,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        print('Error updating shop info: $e');
+                        _errorMessage = 'Error updating information: $e';
 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error updating information: $e'),
-                      backgroundColor: colorScheme.error,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                }
-              } finally {
-                if (mounted) {
-                  setState(() {
-                    _isUpdating = false;
-                  });
-                }
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error updating information: $e'),
+                              backgroundColor: colorScheme.error,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isUpdating = false;
+                          });
+                        }
+                      }
+                    }
+                  : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                disabledBackgroundColor:
+                    colorScheme.onSurface.withOpacity(0.12),
+                disabledForegroundColor:
+                    colorScheme.onSurface.withOpacity(0.38),
+              ),
+              child: const Text('Update'),
             ),
-            child: const Text('Update'),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
     );
   }
 

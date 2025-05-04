@@ -19,6 +19,7 @@ class Invoice extends Equatable {
   final String? shopPhone;
   final String? shopEmail;
   final String? shopLogo;
+  final String? shopGstNumber;
 
   const Invoice({
     required this.id,
@@ -38,6 +39,7 @@ class Invoice extends Equatable {
     this.shopPhone,
     this.shopEmail,
     this.shopLogo,
+    this.shopGstNumber,
   });
 
   @override
@@ -59,6 +61,7 @@ class Invoice extends Equatable {
         shopPhone,
         shopEmail,
         shopLogo,
+        shopGstNumber,
       ];
 
   Invoice copyWith({
@@ -79,6 +82,7 @@ class Invoice extends Equatable {
     String? shopPhone,
     String? shopEmail,
     String? shopLogo,
+    String? shopGstNumber,
   }) {
     return Invoice(
       id: id ?? this.id,
@@ -98,6 +102,7 @@ class Invoice extends Equatable {
       shopPhone: shopPhone ?? this.shopPhone,
       shopEmail: shopEmail ?? this.shopEmail,
       shopLogo: shopLogo ?? this.shopLogo,
+      shopGstNumber: shopGstNumber ?? this.shopGstNumber,
     );
   }
 }

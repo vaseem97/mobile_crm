@@ -28,11 +28,45 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
   String _errorMessage = '';
   Uint8List? _pdfBytes;
   String _invoiceNumber = '';
+  bool _needsShopInfo = false;
+  List<String> _missingFields = [];
 
   @override
   void initState() {
     super.initState();
-    _generateInvoice();
+    _checkShopInfoAndGenerateInvoice();
+  }
+
+  Future<void> _checkShopInfoAndGenerateInvoice() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+        _needsShopInfo = false;
+        _missingFields.clear();
+      });
+
+      // Validate shop information first
+      final validationResult = await _invoiceService.validateShopInfo();
+
+      if (!validationResult.isValid) {
+        setState(() {
+          _isLoading = false;
+          _needsShopInfo = true;
+          _missingFields = validationResult.missingFields;
+        });
+        return;
+      }
+
+      // Proceed with invoice generation
+      await _generateInvoice();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+        _errorMessage = e.toString();
+      });
+    }
   }
 
   Future<void> _generateInvoice() async {
@@ -54,7 +88,7 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
 
       // Generate PDF
       final pdfBytes = await _invoiceService.generatePdf(invoice);
-      
+
       setState(() {
         _pdfBytes = pdfBytes;
         _isLoading = false;
@@ -82,7 +116,8 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: () async {
-                final fileName = 'invoice_${_invoiceNumber.replaceAll('-', '_')}.pdf';
+                final fileName =
+                    'invoice_${_invoiceNumber.replaceAll('-', '_')}.pdf';
                 await _invoiceService.sharePdf(_pdfBytes!, fileName);
               },
               tooltip: 'Share Invoice',
@@ -115,6 +150,10 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
       );
     }
 
+    if (_needsShopInfo) {
+      return _buildMissingShopInfoView();
+    }
+
     if (_hasError) {
       return Center(
         child: Column(
@@ -138,7 +177,7 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _generateInvoice,
+              onPressed: _checkShopInfoAndGenerateInvoice,
               child: const Text('Try Again'),
             ),
           ],
@@ -183,6 +222,129 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
     );
   }
 
+  Widget _buildMissingShopInfoView() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.store_rounded,
+                size: 64,
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Shop Information Needed',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'To generate a professional invoice, please complete your shop profile first.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceVariant.withOpacity(0.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Missing Information:',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(
+                      _missingFields.length,
+                      (index) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 18,
+                              color: colorScheme.error,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              _missingFields[index],
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  context.push('/dashboard?tab=3').then((_) {
+                    _checkShopInfoAndGenerateInvoice();
+                  });
+                },
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Update Shop Profile'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                context.pop();
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -202,7 +364,8 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () async {
-                final fileName = 'invoice_${_invoiceNumber.replaceAll('-', '_')}.pdf';
+                final fileName =
+                    'invoice_${_invoiceNumber.replaceAll('-', '_')}.pdf';
                 await _invoiceService.sharePdf(_pdfBytes!, fileName);
               },
               icon: const Icon(Icons.share),
